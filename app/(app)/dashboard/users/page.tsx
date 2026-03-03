@@ -1,11 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { PageHeader } from "@/components/layout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader, StatCard, DataCard, StatusBadge, EmptyState } from "@/components/app";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -25,45 +24,57 @@ import {
   Search,
   UserPlus,
   User,
+  Users,
   Mail,
   Shield,
   MoreHorizontal,
   Settings,
   Trash2,
+  CheckCircle,
 } from "lucide-react";
 
 const members = [
-  { id: "u-001", name: "Alice Johnson", email: "alice@tenant.com", role: "Admin", status: "Active", lastSeen: "Online", assessments: 0 },
-  { id: "u-002", name: "Bob Smith", email: "bob@tenant.com", role: "Assessor", status: "Active", lastSeen: "2 hrs ago", assessments: 45 },
-  { id: "u-003", name: "Carol Davis", email: "carol@tenant.com", role: "Assessor", status: "Active", lastSeen: "1 day ago", assessments: 38 },
-  { id: "u-004", name: "David Lee", email: "david@tenant.com", role: "Assessor", status: "Active", lastSeen: "30 mins ago", assessments: 52 },
-  { id: "u-005", name: "Eve Wilson", email: "eve@tenant.com", role: "Viewer", status: "Active", lastSeen: "3 days ago", assessments: 0 },
-  { id: "u-006", name: "Frank Brown", email: "frank@tenant.com", role: "Assessor", status: "Invited", lastSeen: "-", assessments: 0 },
+  { id: "u-001", name: "Alice Johnson", email: "alice@tenant.com", role: "Admin", status: "Active", lastSeen: "Online", assessments: 0, avatar: "AJ" },
+  { id: "u-002", name: "Bob Smith", email: "bob@tenant.com", role: "Assessor", status: "Active", lastSeen: "2 hrs ago", assessments: 45, avatar: "BS" },
+  { id: "u-003", name: "Carol Davis", email: "carol@tenant.com", role: "Assessor", status: "Active", lastSeen: "1 day ago", assessments: 38, avatar: "CD" },
+  { id: "u-004", name: "David Lee", email: "david@tenant.com", role: "Assessor", status: "Active", lastSeen: "30 mins ago", assessments: 52, avatar: "DL" },
+  { id: "u-005", name: "Eve Wilson", email: "eve@tenant.com", role: "Viewer", status: "Active", lastSeen: "3 days ago", assessments: 0, avatar: "EW" },
+  { id: "u-006", name: "Frank Brown", email: "frank@tenant.com", role: "Assessor", status: "Invited", lastSeen: "-", assessments: 0, avatar: "FB" },
+  { id: "u-007", name: "Grace Chen", email: "grace@tenant.com", role: "Admin", status: "Invited", lastSeen: "-", assessments: 0, avatar: "GC" },
 ];
 
-const roleColors = {
+type RoleKey = "Admin" | "Assessor" | "Viewer";
+type FilterKey = "all" | "active" | "invited";
+
+const roleVariants: Record<RoleKey, "default" | "info" | "muted"> = {
   Admin: "default",
-  Assessor: "secondary",
-  Viewer: "outline",
-} as const;
+  Assessor: "info",
+  Viewer: "muted",
+};
 
 export default function UsersPage() {
   const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<FilterKey>("all");
 
-  const filteredMembers = members.filter(
-    (m) =>
+  const filteredMembers = members.filter((m) => {
+    const matchesFilter =
+      filter === "all" ||
+      (filter === "active" && m.status === "Active") ||
+      (filter === "invited" && m.status === "Invited");
+    const matchesSearch =
       m.name.toLowerCase().includes(search.toLowerCase()) ||
-      m.email.toLowerCase().includes(search.toLowerCase())
-  );
+      m.email.toLowerCase().includes(search.toLowerCase());
+    return matchesFilter && matchesSearch;
+  });
 
   const activeCount = members.filter(m => m.status === "Active").length;
-  const pendingCount = members.filter(m => m.status === "Invited").length;
+  const invitedCount = members.filter(m => m.status === "Invited").length;
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Team Members"
-        subtitle="Manage your organization's users"
+        subtitle="Manage your platform users"
         actions={
           <Button>
             <UserPlus className="h-4 w-4 mr-2" />
@@ -73,51 +84,49 @@ export default function UsersPage() {
       />
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                <User className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{members.length}</p>
-                <p className="text-sm text-muted-foreground">Total Members</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-500/10">
-                <Shield className="h-5 w-5 text-green-500" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{activeCount}</p>
-                <p className="text-sm text-muted-foreground">Active</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-yellow-500/10">
-                <Mail className="h-5 w-5 text-yellow-500" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{pendingCount}</p>
-                <p className="text-sm text-muted-foreground">Pending Invites</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <StatCard
+          title="Total Members"
+          value={members.length}
+          description="All users in platform"
+          icon={Users}
+        />
+        <StatCard
+          title="Active"
+          value={activeCount}
+          description="Currently active"
+          icon={Shield}
+          trend="up"
+        />
+        <StatCard
+          title="Pending Invites"
+          value={invitedCount}
+          description="Awaiting acceptance"
+          icon={Mail}
+        />
       </div>
 
-      <Card>
-        <CardHeader className="pb-3">
+      <DataCard title="All Members" noPadding>
+        <div className="p-4 border-b">
           <div className="flex flex-col sm:flex-row gap-4 sm:items-center sm:justify-between">
-            <CardTitle className="text-base">All Members</CardTitle>
+            <Tabs value={filter} onValueChange={(v) => setFilter(v as FilterKey)}>
+              <TabsList>
+                <TabsTrigger value="all">
+                  All
+                  <span className="ml-1.5 text-xs text-muted-foreground">({members.length})</span>
+                </TabsTrigger>
+                <TabsTrigger value="active">
+                  <CheckCircle className="h-3.5 w-3.5 mr-1.5" />
+                  Active
+                  <span className="ml-1.5 text-xs text-muted-foreground">({activeCount})</span>
+                </TabsTrigger>
+                <TabsTrigger value="invited">
+                  <Mail className="h-3.5 w-3.5 mr-1.5" />
+                  Invited
+                  <span className="ml-1.5 text-xs text-muted-foreground">({invitedCount})</span>
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+
             <div className="relative w-full sm:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -128,64 +137,83 @@ export default function UsersPage() {
               />
             </div>
           </div>
-        </CardHeader>
-        <CardContent className="p-0">
+        </div>
+
+        {filteredMembers.length === 0 ? (
+          <EmptyState
+            icon={Users}
+            title="No members found"
+            description="Try adjusting your search or filter"
+            action={{ label: "Clear search", onClick: () => setSearch("") }}
+          />
+        ) : (
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Member</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Last Seen</TableHead>
-                <TableHead>Assessments</TableHead>
+                <TableHead className="hidden md:table-cell">Last Seen</TableHead>
+                <TableHead className="hidden lg:table-cell text-right">Assessments</TableHead>
                 <TableHead className="w-10"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredMembers.map((member) => (
-                <TableRow key={member.id}>
+                <TableRow key={member.id} className="group">
                   <TableCell>
                     <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted">
-                        <User className="h-4 w-4 text-muted-foreground" />
+                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-primary/20 to-primary/10 text-primary text-xs font-medium">
+                        {member.avatar}
                       </div>
-                      <div>
-                        <p className="font-medium">{member.name}</p>
-                        <p className="text-xs text-muted-foreground">{member.email}</p>
+                      <div className="min-w-0">
+                        <p className="font-medium truncate">{member.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{member.email}</p>
                       </div>
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={roleColors[member.role as keyof typeof roleColors]}>
+                    <StatusBadge variant={roleVariants[member.role as RoleKey]}>
                       {member.role}
-                    </Badge>
+                    </StatusBadge>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={member.status === "Active" ? "success" : "warning"}>
+                    <StatusBadge
+                      variant={member.status === "Active" ? "success" : "warning"}
+                      dot
+                    >
                       {member.status}
-                    </Badge>
+                    </StatusBadge>
                   </TableCell>
-                  <TableCell className="text-muted-foreground">
+                  <TableCell className="text-muted-foreground hidden md:table-cell">
                     {member.lastSeen === "Online" ? (
                       <span className="flex items-center gap-1.5">
-                        <span className="h-2 w-2 rounded-full bg-green-500" />
+                        <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
                         Online
                       </span>
                     ) : (
                       member.lastSeen
                     )}
                   </TableCell>
-                  <TableCell>
-                    {member.role === "Assessor" ? member.assessments : "-"}
+                  <TableCell className="hidden lg:table-cell text-right tabular-nums">
+                    {member.role === "Assessor" ? (
+                      <span className="font-medium">{member.assessments}</span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity">
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        <DropdownMenuItem>
+                          <User className="h-4 w-4 mr-2" />
+                          View Profile
+                        </DropdownMenuItem>
                         <DropdownMenuItem>
                           <Settings className="h-4 w-4 mr-2" />
                           Edit Role
@@ -202,8 +230,8 @@ export default function UsersPage() {
               ))}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
+        )}
+      </DataCard>
     </div>
   );
 }
