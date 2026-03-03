@@ -2,14 +2,13 @@
 
 import { useState } from "react";
 import { usePathname } from "next/navigation";
-import type { SessionPayload } from "@/lib/types";
 import type { NavItem } from "@/lib/nav";
 import { getPageTitle } from "@/lib/nav";
-import { Topbar } from "./Topbar";
+import { Topbar, type UserInfo } from "./Topbar";
 import { Sidebar, MobileSidebar } from "./Sidebar";
 
 interface AppShellProps {
-  user: SessionPayload;
+  user: UserInfo;
   navItems: NavItem[];
   children: React.ReactNode;
 }

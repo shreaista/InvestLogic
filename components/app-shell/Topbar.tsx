@@ -13,11 +13,16 @@ import {
   User,
   Settings,
 } from "lucide-react";
-import type { SessionPayload } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
+export interface UserInfo {
+  name: string;
+  email: string;
+  role: string;
+}
+
 interface TopbarProps {
-  user: SessionPayload;
+  user: UserInfo;
   pageTitle: string;
   onMenuClick: () => void;
 }
@@ -40,7 +45,6 @@ export function Topbar({ user, pageTitle, onMenuClick }: TopbarProps) {
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 lg:px-6">
-      {/* Mobile menu button */}
       <button
         onClick={onMenuClick}
         className="lg:hidden p-2 -ml-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
@@ -49,7 +53,6 @@ export function Topbar({ user, pageTitle, onMenuClick }: TopbarProps) {
         <span className="sr-only">Toggle menu</span>
       </button>
 
-      {/* Logo + Breadcrumb */}
       <div className="flex items-center gap-3">
         <div className="hidden lg:flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
@@ -57,18 +60,12 @@ export function Topbar({ user, pageTitle, onMenuClick }: TopbarProps) {
           </div>
           <span className="font-semibold">IPA</span>
         </div>
-        
-        {/* Breadcrumb separator */}
         <span className="hidden sm:block text-border text-lg font-light">/</span>
-        
-        {/* Page title */}
         <span className="hidden sm:block text-sm font-medium">{pageTitle}</span>
       </div>
 
-      {/* Spacer */}
       <div className="flex-1" />
 
-      {/* Search */}
       <div className="hidden md:flex items-center">
         <button className="flex items-center gap-2 h-9 px-3 rounded-lg border bg-muted/40 text-muted-foreground text-sm hover:bg-muted transition-colors min-w-[200px]">
           <Search className="h-4 w-4" />
@@ -79,16 +76,13 @@ export function Topbar({ user, pageTitle, onMenuClick }: TopbarProps) {
         </button>
       </div>
 
-      {/* Right side actions */}
       <div className="flex items-center gap-2">
-        {/* Mobile search */}
         <button className="md:hidden p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
           <Search className="h-5 w-5" />
         </button>
 
         <ThemeToggle />
 
-        {/* User menu */}
         <div className="relative ml-2">
           <button
             onClick={() => setUserMenuOpen(!userMenuOpen)}
@@ -103,13 +97,14 @@ export function Topbar({ user, pageTitle, onMenuClick }: TopbarProps) {
                 {formatRole(user.role)}
               </p>
             </div>
-            <ChevronDown className={cn(
-              "hidden lg:block h-4 w-4 text-muted-foreground transition-transform",
-              userMenuOpen && "rotate-180"
-            )} />
+            <ChevronDown
+              className={cn(
+                "hidden lg:block h-4 w-4 text-muted-foreground transition-transform",
+                userMenuOpen && "rotate-180"
+              )}
+            />
           </button>
 
-          {/* Dropdown */}
           {userMenuOpen && (
             <>
               <div
@@ -117,7 +112,6 @@ export function Topbar({ user, pageTitle, onMenuClick }: TopbarProps) {
                 onClick={() => setUserMenuOpen(false)}
               />
               <div className="absolute right-0 top-full mt-2 w-64 rounded-xl border bg-card shadow-lg z-50 overflow-hidden">
-                {/* User info header */}
                 <div className="p-4 border-b bg-muted/30">
                   <div className="flex items-center gap-3">
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
@@ -132,12 +126,9 @@ export function Topbar({ user, pageTitle, onMenuClick }: TopbarProps) {
                     {formatRole(user.role)}
                   </Badge>
                 </div>
-                
-                {/* Menu items */}
+
                 <div className="p-2">
-                  <button
-                    className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                  >
+                  <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
                     <Settings className="h-4 w-4" />
                     Settings
                   </button>

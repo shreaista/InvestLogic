@@ -1,6 +1,6 @@
 import type { Role } from "./types";
 
-export type IconName =
+export type IconKey =
   | "layout-dashboard"
   | "building-2"
   | "users"
@@ -9,44 +9,36 @@ export type IconName =
   | "bar-chart-3"
   | "wallet"
   | "file-text"
-  | "clipboard-list";
+  | "clipboard-list"
+  | "settings";
 
 export interface NavItem {
   href: string;
   label: string;
-  icon: IconName;
+  iconKey: IconKey;
+  rolesAllowed?: Role[];
 }
 
-export const navByRole: Record<Role, NavItem[]> = {
-  saas_admin: [
-    { href: "/dashboard", label: "Overview", icon: "layout-dashboard" },
-    { href: "/dashboard/tenants", label: "Tenants", icon: "building-2" },
-    { href: "/dashboard/users", label: "Users", icon: "users" },
-    { href: "/dashboard/subscriptions", label: "Subscriptions", icon: "credit-card" },
-    { href: "/dashboard/costs", label: "Costs", icon: "dollar-sign" },
-    { href: "/dashboard/reports", label: "Reports", icon: "bar-chart-3" },
-  ],
-  tenant_admin: [
-    { href: "/dashboard", label: "Overview", icon: "layout-dashboard" },
-    { href: "/dashboard/funds", label: "Funds", icon: "wallet" },
-    { href: "/dashboard/proposals", label: "Proposals", icon: "file-text" },
-    { href: "/dashboard/users", label: "Users", icon: "users" },
-    { href: "/dashboard/costs", label: "Costs", icon: "dollar-sign" },
-    { href: "/dashboard/reports", label: "Reports", icon: "bar-chart-3" },
-  ],
-  assessor: [
-    { href: "/dashboard", label: "Overview", icon: "layout-dashboard" },
-    { href: "/dashboard/queue", label: "My Queue", icon: "clipboard-list" },
-    { href: "/dashboard/proposals", label: "Proposals", icon: "file-text" },
-    { href: "/dashboard/reports", label: "Reports", icon: "bar-chart-3" },
-  ],
-};
+export const navItems: NavItem[] = [
+  { href: "/dashboard", label: "Overview", iconKey: "layout-dashboard" },
+  { href: "/dashboard/tenants", label: "Tenants", iconKey: "building-2", rolesAllowed: ["saas_admin"] },
+  { href: "/dashboard/funds", label: "Funds", iconKey: "wallet", rolesAllowed: ["tenant_admin"] },
+  { href: "/dashboard/proposals", label: "Proposals", iconKey: "file-text", rolesAllowed: ["tenant_admin", "assessor"] },
+  { href: "/dashboard/queue", label: "My Queue", iconKey: "clipboard-list", rolesAllowed: ["assessor"] },
+  { href: "/dashboard/users", label: "Users", iconKey: "users", rolesAllowed: ["saas_admin", "tenant_admin"] },
+  { href: "/dashboard/subscriptions", label: "Subscriptions", iconKey: "credit-card", rolesAllowed: ["saas_admin"] },
+  { href: "/dashboard/costs", label: "Costs", iconKey: "dollar-sign", rolesAllowed: ["saas_admin", "tenant_admin"] },
+  { href: "/dashboard/reports", label: "Reports", iconKey: "bar-chart-3" },
+];
 
-export function getNavItems(role: Role): NavItem[] {
-  return navByRole[role] || [];
+export function getNavItemsForRole(role: Role): NavItem[] {
+  return navItems.filter((item) => {
+    if (!item.rolesAllowed) return true;
+    return item.rolesAllowed.includes(role);
+  });
 }
 
-export function getPageTitle(pathname: string, navItems: NavItem[]): string {
-  const item = navItems.find((n) => n.href === pathname);
+export function getPageTitle(pathname: string, items: NavItem[]): string {
+  const item = items.find((n) => n.href === pathname);
   return item?.label || "Dashboard";
 }

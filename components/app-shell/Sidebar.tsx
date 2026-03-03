@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import type { NavItem, IconName } from "@/lib/nav";
+import type { NavItem, IconKey } from "@/lib/nav";
 import {
   LayoutDashboard,
   Building2,
@@ -14,6 +14,7 @@ import {
   Wallet,
   FileText,
   ClipboardList,
+  Settings,
   Briefcase,
   PanelLeftClose,
   PanelLeft,
@@ -21,7 +22,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-const iconMap: Record<IconName, LucideIcon> = {
+const iconMap: Record<IconKey, LucideIcon> = {
   "layout-dashboard": LayoutDashboard,
   "building-2": Building2,
   "users": Users,
@@ -31,6 +32,7 @@ const iconMap: Record<IconName, LucideIcon> = {
   "wallet": Wallet,
   "file-text": FileText,
   "clipboard-list": ClipboardList,
+  "settings": Settings,
 };
 
 interface SidebarProps {
@@ -49,11 +51,10 @@ export function Sidebar({ items, collapsed, onToggle }: SidebarProps) {
         collapsed ? "w-[68px]" : "w-[240px]"
       )}
     >
-      {/* Navigation */}
       <div className="flex-1 py-4 overflow-y-auto">
         <nav className="flex flex-col gap-1 px-3">
           {items.map((item) => {
-            const Icon = iconMap[item.icon];
+            const Icon = iconMap[item.iconKey];
             const isActive = pathname === item.href;
 
             return (
@@ -72,10 +73,12 @@ export function Sidebar({ items, collapsed, onToggle }: SidebarProps) {
                 {isActive && (
                   <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-primary rounded-r-full" />
                 )}
-                <Icon className={cn(
-                  "h-[18px] w-[18px] shrink-0 transition-colors",
-                  isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
-                )} />
+                <Icon
+                  className={cn(
+                    "h-[18px] w-[18px] shrink-0 transition-colors",
+                    isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
+                  )}
+                />
                 {!collapsed && <span>{item.label}</span>}
               </Link>
             );
@@ -83,7 +86,6 @@ export function Sidebar({ items, collapsed, onToggle }: SidebarProps) {
         </nav>
       </div>
 
-      {/* Collapse toggle */}
       <div className="border-t p-3">
         <button
           onClick={onToggle}
@@ -119,15 +121,12 @@ export function MobileSidebar({ items, open, onClose }: MobileSidebarProps) {
 
   return (
     <>
-      {/* Backdrop */}
       <div
         className="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm lg:hidden"
         onClick={onClose}
       />
 
-      {/* Drawer */}
       <aside className="fixed inset-y-0 left-0 z-50 w-[280px] bg-background border-r shadow-2xl lg:hidden animate-in slide-in-from-left-full duration-200">
-        {/* Header */}
         <div className="flex h-14 items-center justify-between border-b px-4">
           <div className="flex items-center gap-2.5">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
@@ -143,10 +142,9 @@ export function MobileSidebar({ items, open, onClose }: MobileSidebarProps) {
           </button>
         </div>
 
-        {/* Navigation */}
         <nav className="flex flex-col gap-1 p-4">
           {items.map((item) => {
-            const Icon = iconMap[item.icon];
+            const Icon = iconMap[item.iconKey];
             const isActive = pathname === item.href;
 
             return (
