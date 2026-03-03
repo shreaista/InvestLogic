@@ -130,6 +130,10 @@ export default function LoginPage() {
             {/* Login Card */}
             <Card className="border shadow-xl shadow-black/5">
               <CardContent className="p-6 sm:p-8">
+                <div className="mb-3 rounded-md border bg-yellow-50 px-3 py-2 text-sm text-yellow-900">
+                  DEPLOY TEST: {new Date().toISOString()}
+                </div>
+
                 <div className="mb-6">
                   <h2 className="text-xl font-semibold tracking-tight">
                     Welcome back
