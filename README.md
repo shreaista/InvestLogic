@@ -1,36 +1,64 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# IPA Frontend
+
+Enterprise-grade Investment Portfolio Assessment platform built with Next.js.
+
+## Tech Stack
+
+- **Framework**: Next.js 16 (App Router)
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS 4
+- **UI Components**: shadcn/ui pattern (custom components)
+- **Icons**: Lucide React
+- **Font**: Inter (Google Fonts)
+- **Theming**: next-themes (dark/light mode)
+- **Auth**: JWT sessions with jose
+
+## UI Architecture
+
+```
+components/
+├── ui/              # Base UI primitives (Button, Card, Input, Table, Badge)
+├── layout/          # Layout components (AppShell, Topbar, SidebarNav, PageHeader)
+└── providers/       # Context providers (ThemeProvider)
+
+app/
+├── (auth)/          # Auth pages (login) - centered minimal layout
+├── (app)/           # App pages (dashboard/*) - sidebar + topbar layout
+└── api/             # API routes (auth/login, auth/logout)
+```
+
+## Design System
+
+- **Colors**: Slate/gray neutral palette with blue/indigo accent
+- **Typography**: Inter font with strong hierarchy
+- **Spacing**: Consistent 4px grid system
+- **Dark Mode**: Full dark/light mode support via CSS variables
 
 ## Getting Started
 
-First, run the development server:
-
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Environment Variables
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```env
+JWT_SECRET=your-secret-key-min-32-chars
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Demo Accounts
 
-## Learn More
+| Role         | Email             | Password    |
+|--------------|-------------------|-------------|
+| SaaS Admin   | admin@ipa.com     | Admin#123   |
+| Tenant Admin | tenant@ipa.com    | Tenant#123  |
+| Assessor     | assessor@ipa.com  | Assess#123  |
 
-To learn more about Next.js, take a look at the following resources:
+## Deployment
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Deployed to Azure Container Apps via Docker:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+.\deploy.ps1 -Msg "your commit message"
+```

@@ -1,12 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/currentUser";
 import { Role } from "@/lib/auth";
-import DashboardShell from "./DashboardShell";
-
-interface NavItem {
-  href: string;
-  label: string;
-}
+import { AppShell, NavItem } from "@/components/layout";
 
 const navByRole: Record<Role, NavItem[]> = {
   saas_admin: [
@@ -28,7 +23,7 @@ const navByRole: Record<Role, NavItem[]> = {
   ],
 };
 
-export default async function DashboardLayout({
+export default async function AppLayout({
   children,
 }: {
   children: React.ReactNode;
@@ -42,8 +37,8 @@ export default async function DashboardLayout({
   const navItems = navByRole[user.role];
 
   return (
-    <DashboardShell user={user} navItems={navItems}>
+    <AppShell user={user} navItems={navItems}>
       {children}
-    </DashboardShell>
+    </AppShell>
   );
 }

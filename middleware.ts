@@ -1,18 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifySession } from "@/lib/auth";
 
-const PUBLIC_ROUTES = ["/login", "/api/auth", "/_next", "/favicon.ico"];
-
-function isPublicRoute(pathname: string): boolean {
-  return PUBLIC_ROUTES.some((route) => pathname.startsWith(route));
-}
-
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-
-  if (isPublicRoute(pathname)) {
-    return NextResponse.next();
-  }
 
   const token = request.cookies.get("ipa_session")?.value;
   const session = token ? await verifySession(token) : null;
