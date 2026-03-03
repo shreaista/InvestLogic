@@ -20,7 +20,7 @@ export async function getSessionSafe(): Promise<SessionSafeResult> {
     }
 
     const payloadBase64 = parts[1];
-    const payloadJson = Buffer.from(payloadBase64, "base64").toString("utf-8");
+    const payloadJson = Buffer.from(payloadBase64, "base64url").toString("utf-8");
     const payload = JSON.parse(payloadJson);
 
     if (!payload.email && !payload.userId) {
