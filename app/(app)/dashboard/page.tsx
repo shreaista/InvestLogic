@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/currentUser";
 import { PageHeader, StatCard, DataCard } from "@/components/layout";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -21,6 +22,8 @@ import {
   TrendingUp,
   Wallet,
   FileText,
+  FileCheck,
+  AlertCircle,
 } from "lucide-react";
 
 export default async function DashboardPage() {
@@ -148,43 +151,192 @@ function SaaSAdminOverview() {
 }
 
 function TenantAdminOverview() {
+  const pipelineData = {
+    new: [
+      { id: "P-101", name: "Community Arts Program", applicant: "Arts Alliance", amount: "$45,000", submitted: "Mar 2, 2026" },
+      { id: "P-102", name: "Youth Sports Initiative", applicant: "Sports Foundation", amount: "$32,000", submitted: "Mar 1, 2026" },
+    ],
+    assigned: [
+      { id: "P-098", name: "Green Energy Project", applicant: "Eco Solutions", amount: "$78,000", assessor: "John D.", due: "Mar 5, 2026" },
+      { id: "P-099", name: "Digital Literacy Program", applicant: "Tech For All", amount: "$25,000", assessor: "Sarah M.", due: "Mar 6, 2026" },
+    ],
+    review: [
+      { id: "P-095", name: "Senior Wellness Center", applicant: "Elder Care Co", amount: "$120,000", assessor: "Mike R.", score: "8.2" },
+      { id: "P-096", name: "Food Security Network", applicant: "Hunger Relief", amount: "$55,000", assessor: "Lisa K.", score: "7.8" },
+      { id: "P-097", name: "Education Technology", applicant: "EduTech Inc", amount: "$89,000", assessor: "John D.", score: "9.1" },
+    ],
+    completed: [
+      { id: "P-090", name: "Healthcare Access", applicant: "Health First", amount: "$150,000", status: "Approved", date: "Feb 28, 2026" },
+      { id: "P-091", name: "Housing Initiative", applicant: "Shelter Org", amount: "$200,000", status: "Approved", date: "Feb 27, 2026" },
+      { id: "P-092", name: "Transport Subsidy", applicant: "Mobility Aid", amount: "$35,000", status: "Declined", date: "Feb 26, 2026" },
+    ],
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Tenant Overview"
-        subtitle="Your organization at a glance"
+        subtitle="Your organization's funding pipeline"
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
-          title="Active Funds"
-          value="8"
-          description="3 closing soon"
+          title="Funds Available"
+          value="$1.2M"
+          description="Across 8 active funds"
           trend="neutral"
           icon={Wallet}
         />
         <StatCard
-          title="Open Proposals"
-          value="34"
-          description="+5 this week"
-          trend="up"
-          icon={FileText}
-        />
-        <StatCard
-          title="Team Members"
-          value="12"
-          description="2 pending invites"
-          trend="neutral"
-          icon={Users}
-        />
-        <StatCard
-          title="Pending Approvals"
+          title="In Review"
           value="7"
-          description="Action required"
+          description="3 due this week"
           trend="neutral"
           icon={Clock}
         />
+        <StatCard
+          title="Completed (MTD)"
+          value="23"
+          description="+8 from last month"
+          trend="up"
+          icon={FileCheck}
+        />
+        <StatCard
+          title="Monthly Cost"
+          value="$234"
+          description="LLM processing"
+          trend="neutral"
+          icon={DollarSign}
+        />
       </div>
+
+      <DataCard title="Proposal Pipeline">
+        <Tabs defaultValue="new">
+          <TabsList>
+            <TabsTrigger value="new">
+              New <Badge variant="secondary" className="ml-1.5">{pipelineData.new.length}</Badge>
+            </TabsTrigger>
+            <TabsTrigger value="assigned">
+              Assigned <Badge variant="secondary" className="ml-1.5">{pipelineData.assigned.length}</Badge>
+            </TabsTrigger>
+            <TabsTrigger value="review">
+              In Review <Badge variant="secondary" className="ml-1.5">{pipelineData.review.length}</Badge>
+            </TabsTrigger>
+            <TabsTrigger value="completed">
+              Completed <Badge variant="secondary" className="ml-1.5">{pipelineData.completed.length}</Badge>
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="new">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>ID</TableHead>
+                  <TableHead>Proposal</TableHead>
+                  <TableHead>Applicant</TableHead>
+                  <TableHead>Amount</TableHead>
+                  <TableHead>Submitted</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pipelineData.new.map((item) => (
+                  <TableRow key={item.id}>
+                    <TableCell className="font-mono text-xs">{item.id}</TableCell>
+                    <TableCell className="font-medium">{item.name}</TableCell>
+                    <TableCell>{item.applicant}</TableCell>
+                    <TableCell>{item.amount}</TableCell>
+                    <TableCell className="text-muted-foreground">{item.submitted}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TabsContent>
+
+          <TabsContent value="assigned">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>ID</TableHead>
+                  <TableHead>Proposal</TableHead>
+                  <TableHead>Applicant</TableHead>
+                  <TableHead>Assessor</TableHead>
+                  <TableHead>Due Date</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pipelineData.assigned.map((item) => (
+                  <TableRow key={item.id}>
+                    <TableCell className="font-mono text-xs">{item.id}</TableCell>
+                    <TableCell className="font-medium">{item.name}</TableCell>
+                    <TableCell>{item.applicant}</TableCell>
+                    <TableCell>{item.assessor}</TableCell>
+                    <TableCell>
+                      <Badge variant="warning">{item.due}</Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TabsContent>
+
+          <TabsContent value="review">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>ID</TableHead>
+                  <TableHead>Proposal</TableHead>
+                  <TableHead>Applicant</TableHead>
+                  <TableHead>Assessor</TableHead>
+                  <TableHead>Score</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pipelineData.review.map((item) => (
+                  <TableRow key={item.id}>
+                    <TableCell className="font-mono text-xs">{item.id}</TableCell>
+                    <TableCell className="font-medium">{item.name}</TableCell>
+                    <TableCell>{item.applicant}</TableCell>
+                    <TableCell>{item.assessor}</TableCell>
+                    <TableCell>
+                      <Badge variant="info">{item.score}</Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TabsContent>
+
+          <TabsContent value="completed">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>ID</TableHead>
+                  <TableHead>Proposal</TableHead>
+                  <TableHead>Applicant</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Completed</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pipelineData.completed.map((item) => (
+                  <TableRow key={item.id}>
+                    <TableCell className="font-mono text-xs">{item.id}</TableCell>
+                    <TableCell className="font-medium">{item.name}</TableCell>
+                    <TableCell>{item.applicant}</TableCell>
+                    <TableCell>
+                      <Badge variant={item.status === "Approved" ? "success" : "destructive"}>
+                        {item.status === "Approved" ? <CheckCircle className="h-3 w-3 mr-1" /> : <AlertCircle className="h-3 w-3 mr-1" />}
+                        {item.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{item.date}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TabsContent>
+        </Tabs>
+      </DataCard>
     </div>
   );
 }
