@@ -9,6 +9,7 @@ export const TENANT_ENTITLEMENTS_UPDATE = "tenant:entitlements:update";
 export const TENANT_COSTS_READ = "tenant:costs:read";
 
 export const USER_MANAGE = "user:manage";
+export const USER_CREATE = "user:create";
 export const GROUP_MANAGE = "group:manage";
 export const QUEUE_MANAGE = "queue:manage";
 
@@ -29,6 +30,7 @@ export const PERMISSIONS = {
   TENANT_ENTITLEMENTS_UPDATE,
   TENANT_COSTS_READ,
   USER_MANAGE,
+  USER_CREATE,
   GROUP_MANAGE,
   QUEUE_MANAGE,
   PROPOSAL_CREATE,

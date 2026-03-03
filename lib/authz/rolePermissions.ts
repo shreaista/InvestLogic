@@ -6,6 +6,7 @@ import {
   TENANT_ENTITLEMENTS_UPDATE,
   TENANT_COSTS_READ,
   USER_MANAGE,
+  USER_CREATE,
   GROUP_MANAGE,
   QUEUE_MANAGE,
   PROPOSAL_CREATE,
@@ -28,6 +29,7 @@ export const ROLE_PERMISSIONS: Record<RoleKey, readonly Permission[]> = {
     TENANT_ENTITLEMENTS_UPDATE,
     TENANT_COSTS_READ,
     USER_MANAGE,
+    USER_CREATE,
     GROUP_MANAGE,
     QUEUE_MANAGE,
     PROPOSAL_CREATE,
@@ -42,6 +44,7 @@ export const ROLE_PERMISSIONS: Record<RoleKey, readonly Permission[]> = {
   tenant_admin: [
     TENANT_COSTS_READ,
     USER_MANAGE,
+    USER_CREATE,
     GROUP_MANAGE,
     QUEUE_MANAGE,
     PROPOSAL_CREATE,

@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthzContext, ROLES, isAuthzError } from "@/lib/authz";
+import {
+  getAuthzContext,
+  isAuthzError,
+  requirePermission,
+  USER_CREATE,
+} from "@/lib/authz";
 import { assertCanCreateAssessor, isEntitlementError } from "@/lib/entitlements";
 
 type CreateUserRole = "tenant_admin" | "assessor";
@@ -12,16 +17,48 @@ interface CreateUserBody {
 
 export async function POST(request: NextRequest) {
   try {
-    const ctx = await getAuthzContext();
+    // 1. Authenticate
+    let ctx;
+    try {
+      ctx = await getAuthzContext();
+    } catch (error) {
+      if (isAuthzError(error)) {
+        return NextResponse.json(
+          { ok: false, error: "Authentication required" },
+          { status: 401 }
+        );
+      }
+      throw error;
+    }
 
-    if (ctx.role !== ROLES.SAAS_ADMIN && ctx.role !== ROLES.TENANT_ADMIN) {
+    // 2. Require tenant context
+    if (!ctx.tenantId) {
       return NextResponse.json(
-        { ok: false, error: "Forbidden: insufficient role" },
+        { ok: false, error: "Tenant context required" },
+        { status: 400 }
+      );
+    }
+
+    // 3. Enforce permission
+    try {
+      requirePermission(ctx, USER_CREATE);
+    } catch {
+      return NextResponse.json(
+        { ok: false, error: "Forbidden" },
         { status: 403 }
       );
     }
 
-    const body = (await request.json()) as CreateUserBody;
+    // 4. Parse and validate body
+    let body: CreateUserBody;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        { ok: false, error: "Invalid JSON body" },
+        { status: 400 }
+      );
+    }
 
     if (!body.email || typeof body.email !== "string") {
       return NextResponse.json(
@@ -37,8 +74,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 5. Deny creating saas_admin via this endpoint
+    if ((body.role as string) === "saas_admin") {
+      return NextResponse.json(
+        { ok: false, error: "Cannot create saas_admin via this endpoint" },
+        { status: 403 }
+      );
+    }
+
+    // 6. Enforce maxAssessors entitlement for assessor role
     if (body.role === "assessor") {
-      // TODO: Replace with DB count later (e.g., await db.users.count({ tenantId, role: 'assessor' }))
+      // TODO: Replace with DB count later
+      // e.g., const currentAssessorCount = await db.users.count({ where: { tenantId: ctx.tenantId, role: 'assessor' } });
       const currentAssessorCount = 0;
 
       assertCanCreateAssessor(ctx, currentAssessorCount);
@@ -47,18 +94,12 @@ export async function POST(request: NextRequest) {
     // TODO: Actually create user in DB
     // await db.users.create({ email: body.email, name: body.name, role: body.role, tenantId: ctx.tenantId });
 
+    // 7. Success
     return NextResponse.json({
       ok: true,
       data: { created: true },
     });
   } catch (error) {
-    if (isAuthzError(error)) {
-      return NextResponse.json(
-        { ok: false, error: error.safeMessage },
-        { status: error.status }
-      );
-    }
-
     if (isEntitlementError(error)) {
       return NextResponse.json(
         { ok: false, error: error.safeMessage, details: error.details },
