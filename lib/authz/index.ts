@@ -40,7 +40,7 @@ export { getAuthzContext, getAuthzContextOrNull } from "./context";
 export type { MyAuthzData, MyAuthzResult } from "./sessionAuthz";
 export { getMyAuthz } from "./sessionAuthz";
 
-// Guards
+// Guards (API routes)
 export {
   AuthzHttpError,
   requireSession,
@@ -62,3 +62,12 @@ export {
   requireProposalAccess,
 } from "./guards";
 export type { SessionUser, Proposal } from "./guards";
+
+// Page Guards (server components)
+export {
+  requireAuth,
+  requireRole as requirePageRole,
+  requireTenantContext as requirePageTenantContext,
+  requireRoleWithTenantContext,
+} from "./pageGuards";
+export type { AuthenticatedUser, TenantContext } from "./pageGuards";

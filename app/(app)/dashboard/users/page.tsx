@@ -1,19 +1,8 @@
-import { redirect } from "next/navigation";
-import { getMyAuthz } from "@/lib/authz";
+import { requireRoleWithTenantContext } from "@/lib/authz";
 import UsersClient from "./UsersClient";
 
 export default async function UsersPage() {
-  const authz = await getMyAuthz();
-
-  if (!authz.ok) {
-    redirect("/login");
-  }
-
-  const { permissions } = authz.data;
-
-  if (!permissions.includes("user:read")) {
-    redirect("/dashboard");
-  }
+  await requireRoleWithTenantContext(["tenant_admin", "saas_admin"]);
 
   return <UsersClient />;
 }

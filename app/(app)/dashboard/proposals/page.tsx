@@ -1,12 +1,13 @@
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
-import { getSessionSafe } from "@/lib/session";
+import { requireAuth } from "@/lib/authz";
 import ProposalsClient from "./ProposalsClient";
 import type { Proposal } from "@/lib/mock/proposals";
 
 async function fetchProposals(): Promise<{ proposals: Proposal[]; error?: string }> {
   const cookieStore = await cookies();
   const sessionCookie = cookieStore.get("ipa_session");
+  const tenantCookie = cookieStore.get("ipa_tenant");
 
   if (!sessionCookie) {
     return { proposals: [], error: "unauthenticated" };
@@ -14,9 +15,13 @@ async function fetchProposals(): Promise<{ proposals: Proposal[]; error?: string
 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
+  const cookieHeader = tenantCookie
+    ? `ipa_session=${sessionCookie.value}; ipa_tenant=${tenantCookie.value}`
+    : `ipa_session=${sessionCookie.value}`;
+
   const res = await fetch(`${baseUrl}/api/proposals`, {
     headers: {
-      Cookie: `ipa_session=${sessionCookie.value}`,
+      Cookie: cookieHeader,
     },
     cache: "no-store",
   });
@@ -39,14 +44,21 @@ async function fetchProposals(): Promise<{ proposals: Proposal[]; error?: string
 }
 
 export default async function ProposalsPage() {
-  const { user } = await getSessionSafe();
+  const user = await requireAuth();
 
-  if (!user) {
-    redirect("/login");
+  const allowedRoles = ["tenant_admin", "assessor", "saas_admin"];
+  if (!allowedRoles.includes(user.role)) {
+    redirect("/dashboard");
   }
 
-  if (user.role !== "tenant_admin" && user.role !== "saas_admin") {
-    redirect("/dashboard");
+  // saas_admin must have activeTenantId to view proposals
+  if (user.role === "saas_admin" && !user.tenantId) {
+    redirect("/dashboard/tenants");
+  }
+
+  // tenant_admin and assessor must have tenantId
+  if ((user.role === "tenant_admin" || user.role === "assessor") && !user.tenantId) {
+    redirect("/login");
   }
 
   const { proposals, error } = await fetchProposals();

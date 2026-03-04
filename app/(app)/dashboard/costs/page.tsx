@@ -1,19 +1,22 @@
 import { redirect } from "next/navigation";
-import { getMyAuthz } from "@/lib/authz";
+import { requireAuth } from "@/lib/authz";
 import CostsClient from "./CostsClient";
 
 export default async function CostsPage() {
-  const authz = await getMyAuthz();
+  const user = await requireAuth();
 
-  if (!authz.ok) {
-    redirect("/login");
-  }
-
-  const { role, permissions } = authz.data;
-
-  if (!permissions.includes("tenant:costs:read")) {
+  const allowedRoles = ["saas_admin", "tenant_admin"];
+  if (!allowedRoles.includes(user.role)) {
     redirect("/dashboard");
   }
 
-  return <CostsClient role={role} />;
+  // tenant_admin must have tenant context
+  if (user.role === "tenant_admin" && !user.tenantId) {
+    redirect("/login");
+  }
+
+  // saas_admin can view global costs without tenant context
+  // (no redirect needed for saas_admin without tenantId)
+
+  return <CostsClient role={user.role} />;
 }
