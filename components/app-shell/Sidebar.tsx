@@ -15,6 +15,7 @@ import {
   FileText,
   ClipboardList,
   Settings,
+  ScrollText,
   Briefcase,
   PanelLeftClose,
   PanelLeft,
@@ -33,6 +34,7 @@ const iconMap: Record<IconKey, LucideIcon> = {
   "file-text": FileText,
   "clipboard-list": ClipboardList,
   "settings": Settings,
+  "scroll-text": ScrollText,
 };
 
 function filterItemsByPermissionAndRole(

@@ -1,21 +1,43 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   requireSession,
+  requireUserRole,
   requireTenant,
+  requireRBACPermission,
   jsonError,
   AuthzHttpError,
   hasPermission,
   FUND_MANDATE_MANAGE,
+  RBAC_PERMISSIONS,
 } from "@/lib/authz";
 import { getAuthzContext } from "@/lib/authz";
-import { listFundMandates, createFundMandate } from "@/lib/mock/fundMandates";
+import { listFundMandates as listMockFundMandates, createFundMandate } from "@/lib/mock/fundMandates";
+import { listFundMandates as listBlobFundMandates } from "@/lib/storage/azure";
 import { logAudit } from "@/lib/audit";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const user = await requireSession();
-    const tenantId = requireTenant(user);
+    const session = await requireSession();
+    requireUserRole(session, ["tenant_admin", "saas_admin"]);
+    const tenantId = requireTenant(session);
     const ctx = await getAuthzContext();
+
+    const source = request.nextUrl.searchParams.get("source");
+    const mandateKey = request.nextUrl.searchParams.get("mandateKey");
+
+    if (source === "blob") {
+      requireRBACPermission(session, RBAC_PERMISSIONS.FUND_MANDATE_READ);
+
+      const blobs = await listBlobFundMandates({
+        tenantId,
+        mandateKey: mandateKey || undefined,
+      });
+
+      return NextResponse.json({
+        ok: true,
+        data: { files: blobs },
+      });
+    }
 
     if (!hasPermission(ctx, FUND_MANDATE_MANAGE)) {
       throw new AuthzHttpError(403, "Permission denied");
@@ -28,7 +50,7 @@ export async function GET() {
       );
     }
 
-    const mandates = listFundMandates(tenantId);
+    const mandates = listMockFundMandates(tenantId);
 
     return NextResponse.json({
       ok: true,
