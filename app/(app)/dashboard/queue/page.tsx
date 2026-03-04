@@ -1,9 +1,14 @@
-import { requirePageRole } from "@/lib/authz";
+import { requireRoleWithTenantContext } from "@/lib/authz";
+import { listProposalsForAssessorAccess } from "@/lib/mock/proposals";
 import QueueClient from "./QueueClient";
 
 export default async function QueuePage() {
-  // Assessor role only
-  await requirePageRole(["assessor"]);
+  const { user, tenantId } = await requireRoleWithTenantContext(["assessor"]);
 
-  return <QueueClient />;
+  const proposals = listProposalsForAssessorAccess({
+    tenantId,
+    userId: user.userId,
+  });
+
+  return <QueueClient proposals={proposals} />;
 }

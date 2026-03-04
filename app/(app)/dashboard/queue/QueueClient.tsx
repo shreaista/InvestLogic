@@ -1,63 +1,67 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { PageHeader, StatCard, DataCard, StatusBadge, EmptyState } from "@/components/app";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Search,
   ArrowRight,
   Target,
-  Clock,
   CheckCircle,
   AlertTriangle,
   Play,
-  Zap,
+  Users,
+  User,
 } from "lucide-react";
-
-const queueItems = [
-  { id: "P-095", name: "Senior Wellness Center", tenant: "Elder Care Co", fund: "Healthcare Init", amount: "$120,000", priority: "High", status: "In Progress", due: "Mar 3, 2026", daysLeft: 1, progress: 75 },
-  { id: "P-098", name: "Green Energy Project", tenant: "Eco Solutions", fund: "Innovation Grant", amount: "$78,000", priority: "High", status: "Not Started", due: "Mar 5, 2026", daysLeft: 3, progress: 0 },
-  { id: "P-096", name: "Food Security Network", tenant: "Hunger Relief", fund: "Emergency Reserve", amount: "$55,000", priority: "Medium", status: "In Progress", due: "Mar 4, 2026", daysLeft: 2, progress: 40 },
-  { id: "P-099", name: "Digital Literacy Program", tenant: "Tech For All", fund: "Community Dev", amount: "$25,000", priority: "Medium", status: "Not Started", due: "Mar 6, 2026", daysLeft: 4, progress: 0 },
-  { id: "P-100", name: "Arts & Culture Festival", tenant: "Creative Minds", fund: "General Fund", amount: "$35,000", priority: "Low", status: "Not Started", due: "Mar 10, 2026", daysLeft: 8, progress: 0 },
-  { id: "P-103", name: "Youth Mentorship", tenant: "Future Leaders", fund: "Youth Programs", amount: "$42,000", priority: "Medium", status: "Not Started", due: "Mar 8, 2026", daysLeft: 6, progress: 0 },
-  { id: "P-104", name: "Clean Water Initiative", tenant: "Water For All", fund: "Community Dev", amount: "$68,000", priority: "Low", status: "Not Started", due: "Mar 12, 2026", daysLeft: 10, progress: 0 },
-];
+import type { ProposalWithAssignment } from "@/lib/mock/proposals";
 
 type PriorityKey = "High" | "Medium" | "Low";
-type StatusKey = "In Progress" | "Not Started";
-type FilterKey = "all" | "high" | "in-progress" | "due-soon";
+type FilterKey = "all" | "high" | "direct" | "queue";
 
-const statusVariants: Record<StatusKey, "info" | "muted"> = {
-  "In Progress": "info",
-  "Not Started": "muted",
-};
+interface QueueClientProps {
+  proposals: ProposalWithAssignment[];
+}
 
-export default function QueueClient() {
+function formatAmount(amount: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 0,
+  }).format(amount);
+}
+
+export default function QueueClient({ proposals }: QueueClientProps) {
+  const router = useRouter();
   const [filter, setFilter] = useState<FilterKey>("all");
   const [search, setSearch] = useState("");
 
-  const filteredItems = queueItems.filter((item) => {
+  const filteredItems = proposals.filter((item) => {
     const matchesFilter =
       filter === "all" ||
       (filter === "high" && item.priority === "High") ||
-      (filter === "in-progress" && item.status === "In Progress") ||
-      (filter === "due-soon" && item.daysLeft <= 3);
+      (filter === "direct" && item.assignmentType === "direct") ||
+      (filter === "queue" && item.assignmentType === "queue");
     const matchesSearch =
       item.name.toLowerCase().includes(search.toLowerCase()) ||
-      item.tenant.toLowerCase().includes(search.toLowerCase()) ||
+      item.applicant.toLowerCase().includes(search.toLowerCase()) ||
       item.id.toLowerCase().includes(search.toLowerCase());
     return matchesFilter && matchesSearch;
   });
 
-  const highPriorityCount = queueItems.filter(q => q.priority === "High").length;
-  const inProgressCount = queueItems.filter(q => q.status === "In Progress").length;
-  const dueSoonCount = queueItems.filter(q => q.daysLeft <= 3).length;
+  const highPriorityCount = proposals.filter(q => q.priority === "High").length;
+  const directCount = proposals.filter(q => q.assignmentType === "direct").length;
+  const queueCount = proposals.filter(q => q.assignmentType === "queue").length;
 
   return (
     <div className="space-y-6">
+      <div className="text-sm text-muted-foreground bg-muted/50 px-3 py-2 rounded-md">
+        Showing <span className="font-medium text-foreground">{proposals.length}</span> proposal{proposals.length !== 1 ? "s" : ""} in your queue
+      </div>
+
       <PageHeader
         title="My Queue"
         subtitle="Proposals assigned to you for assessment"
@@ -66,7 +70,7 @@ export default function QueueClient() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Total Assigned"
-          value={queueItems.length}
+          value={proposals.length}
           description="In your queue"
           icon={Target}
         />
@@ -77,17 +81,16 @@ export default function QueueClient() {
           icon={AlertTriangle}
         />
         <StatCard
-          title="In Progress"
-          value={inProgressCount}
-          description="Currently working"
-          icon={Clock}
+          title="Direct Assigned"
+          value={directCount}
+          description="Assigned to you"
+          icon={User}
         />
         <StatCard
-          title="Due Soon"
-          value={dueSoonCount}
-          description="Within 3 days"
-          trend={dueSoonCount > 2 ? "down" : "neutral"}
-          icon={Zap}
+          title="Via Queue"
+          value={queueCount}
+          description="From shared queues"
+          icon={Users}
         />
       </div>
 
@@ -107,16 +110,16 @@ export default function QueueClient() {
               <TabsList>
                 <TabsTrigger value="all">
                   All
-                  <span className="ml-1.5 text-xs text-muted-foreground">({queueItems.length})</span>
+                  <span className="ml-1.5 text-xs text-muted-foreground">({proposals.length})</span>
                 </TabsTrigger>
                 <TabsTrigger value="high">
                   High
                 </TabsTrigger>
-                <TabsTrigger value="in-progress">
-                  In Progress
+                <TabsTrigger value="direct">
+                  Direct
                 </TabsTrigger>
-                <TabsTrigger value="due-soon">
-                  Due Soon
+                <TabsTrigger value="queue">
+                  Queue
                 </TabsTrigger>
               </TabsList>
             </Tabs>
@@ -133,7 +136,7 @@ export default function QueueClient() {
         ) : (
           <div className="divide-y">
             {filteredItems.map((item) => (
-              <QueueRow key={item.id} item={item} />
+              <QueueRow key={item.id} item={item} onOpen={() => router.push(`/dashboard/proposals/${item.id}`)} />
             ))}
           </div>
         )}
@@ -142,27 +145,14 @@ export default function QueueClient() {
   );
 }
 
-interface QueueItem {
-  id: string;
-  name: string;
-  tenant: string;
-  fund: string;
-  amount: string;
-  priority: string;
-  status: string;
-  due: string;
-  daysLeft: number;
-  progress: number;
-}
-
 interface QueueRowProps {
-  item: QueueItem;
+  item: ProposalWithAssignment;
+  onOpen: () => void;
 }
 
-function QueueRow({ item }: QueueRowProps) {
-  const isUrgent = item.daysLeft <= 2;
+function QueueRow({ item, onOpen }: QueueRowProps) {
   const priority = item.priority as PriorityKey;
-  const status = item.status as StatusKey;
+  const isInReview = item.status === "In Review";
 
   return (
     <div className="flex items-center gap-4 p-4 hover:bg-muted/30 transition-colors group">
@@ -180,47 +170,50 @@ function QueueRow({ item }: QueueRowProps) {
         <div className="flex items-center gap-2 mb-1">
           <span className="font-mono text-xs text-muted-foreground">{item.id}</span>
           <span className="font-medium truncate">{item.name}</span>
-          {isUrgent && (
-            <StatusBadge variant="error" className="animate-pulse">
-              Urgent
+          {priority === "High" && (
+            <StatusBadge variant="error">
+              High
             </StatusBadge>
           )}
         </div>
         <div className="flex items-center gap-3 text-sm text-muted-foreground">
-          <span>{item.tenant}</span>
+          <span>{item.applicant}</span>
           <span className="text-muted-foreground/50">•</span>
-          <span className="tabular-nums">{item.amount}</span>
+          <span className="tabular-nums">{formatAmount(item.amount)}</span>
         </div>
       </div>
 
       <div className="hidden sm:flex items-center gap-3">
-        <StatusBadge variant={statusVariants[status]}>
-          {status === "In Progress" && <Play className="h-3 w-3 mr-1 fill-current" />}
-          {status}
+        <StatusBadge variant={isInReview ? "warning" : "info"}>
+          {isInReview && <Play className="h-3 w-3 mr-1 fill-current" />}
+          {item.status}
         </StatusBadge>
-        {item.progress > 0 && (
-          <div className="w-16">
-            <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-              <div
-                className="h-full bg-primary rounded-full transition-all"
-                style={{ width: `${item.progress}%` }}
-              />
-            </div>
-            <p className="text-[10px] text-muted-foreground text-center mt-0.5">
-              {item.progress}%
-            </p>
-          </div>
-        )}
       </div>
 
-      <div className="hidden md:block text-right w-24">
-        <p className="text-sm font-medium">{item.due}</p>
-        <p className={`text-xs ${isUrgent ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
-          {item.daysLeft} day{item.daysLeft !== 1 ? "s" : ""} left
-        </p>
+      <div className="hidden md:flex items-center gap-2">
+        <Badge variant="outline" className="text-xs">
+          {item.assignmentType === "direct" ? (
+            <>
+              <User className="h-3 w-3 mr-1" />
+              Direct
+            </>
+          ) : (
+            <>
+              <Users className="h-3 w-3 mr-1" />
+              {item.assignedQueueName || "Queue"}
+            </>
+          )}
+        </Badge>
       </div>
 
-      <Button size="sm" className="shrink-0">
+      {item.dueDate && (
+        <div className="hidden lg:block text-right w-24">
+          <p className="text-sm font-medium">{item.dueDate}</p>
+          <p className="text-xs text-muted-foreground">Due date</p>
+        </div>
+      )}
+
+      <Button size="sm" className="shrink-0" onClick={onOpen}>
         Open
         <ArrowRight className="h-3.5 w-3.5 ml-1.5" />
       </Button>

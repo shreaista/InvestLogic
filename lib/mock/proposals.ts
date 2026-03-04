@@ -1,10 +1,21 @@
 import "server-only";
 
+import {
+  getQueueIdsForUser,
+  getProposalIdsInQueues,
+  getProposalQueueId,
+  getQueueById,
+  assignProposalToQueue as assignToQueue,
+  removeProposalFromQueue,
+} from "./queues";
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type ProposalStatus = "New" | "Assigned" | "In Review" | "Approved" | "Declined";
+
+export type AssignmentType = "direct" | "queue" | "none";
 
 export interface Proposal {
   id: string;
@@ -19,6 +30,12 @@ export interface Proposal {
   submittedAt: string;
   dueDate: string | null;
   priority: "High" | "Medium" | "Low";
+}
+
+export interface ProposalWithAssignment extends Proposal {
+  assignmentType: AssignmentType;
+  assignedQueueId: string | null;
+  assignedQueueName: string | null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -188,7 +205,13 @@ export function listProposalsForUser(params: ListProposalsParams): Proposal[] {
   }
 
   if (role === "assessor") {
-    return tenantProposals.filter((p) => p.assignedToUserId === userId);
+    const userQueueIds = getQueueIdsForUser(tenantId, userId);
+    const proposalIdsInQueues = getProposalIdsInQueues(userQueueIds);
+
+    return tenantProposals.filter(
+      (p) =>
+        p.assignedToUserId === userId || proposalIdsInQueues.includes(p.id)
+    );
   }
 
   return [];
@@ -227,8 +250,136 @@ export function getProposalForUser(params: GetProposalParams): GetProposalResult
     if (proposal.assignedToUserId === userId) {
       return { proposal, accessDenied: false };
     }
+
+    const userQueueIds = getQueueIdsForUser(tenantId, userId);
+    const proposalQueueId = getProposalQueueId(proposalId);
+    if (proposalQueueId && userQueueIds.includes(proposalQueueId)) {
+      return { proposal, accessDenied: false };
+    }
+
     return { proposal: null, accessDenied: true };
   }
 
   return { proposal: null, accessDenied: true };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Assessor Queue Access
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface ListAssessorQueueParams {
+  tenantId: string;
+  userId: string;
+}
+
+export function listProposalsForAssessorAccess(
+  params: ListAssessorQueueParams
+): ProposalWithAssignment[] {
+  const { tenantId, userId } = params;
+
+  const tenantProposals = proposals.filter((p) => p.tenantId === tenantId);
+  const userQueueIds = getQueueIdsForUser(tenantId, userId);
+  const proposalIdsInQueues = getProposalIdsInQueues(userQueueIds);
+
+  const result: ProposalWithAssignment[] = [];
+
+  for (const proposal of tenantProposals) {
+    const proposalQueueId = getProposalQueueId(proposal.id);
+    const queue = proposalQueueId ? getQueueById(proposalQueueId) : null;
+
+    if (proposal.assignedToUserId === userId) {
+      result.push({
+        ...proposal,
+        assignmentType: "direct",
+        assignedQueueId: proposalQueueId,
+        assignedQueueName: queue?.name ?? null,
+      });
+    } else if (proposalIdsInQueues.includes(proposal.id)) {
+      result.push({
+        ...proposal,
+        assignmentType: "queue",
+        assignedQueueId: proposalQueueId,
+        assignedQueueName: queue?.name ?? null,
+      });
+    }
+  }
+
+  return result;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Assignment Functions
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface AssignProposalParams {
+  tenantId: string;
+  proposalId: string;
+  assignToUserId?: string;
+  assignToUserName?: string;
+  assignToQueueId?: string;
+}
+
+export interface AssignProposalResult {
+  ok: boolean;
+  error?: string;
+  assignedToUserId?: string | null;
+  assignedQueueId?: string | null;
+}
+
+export function assignProposal(params: AssignProposalParams): AssignProposalResult {
+  const { tenantId, proposalId, assignToUserId, assignToUserName, assignToQueueId } = params;
+
+  const proposal = proposals.find((p) => p.id === proposalId);
+  if (!proposal) {
+    return { ok: false, error: "Proposal not found" };
+  }
+
+  if (proposal.tenantId !== tenantId) {
+    return { ok: false, error: "Proposal not in tenant" };
+  }
+
+  if (assignToUserId && assignToQueueId) {
+    return { ok: false, error: "Cannot assign to both user and queue" };
+  }
+
+  if (!assignToUserId && !assignToQueueId) {
+    return { ok: false, error: "Must assign to user or queue" };
+  }
+
+  if (assignToUserId) {
+    proposal.assignedToUserId = assignToUserId;
+    proposal.assignedToName = assignToUserName ?? assignToUserId;
+    if (proposal.status === "New") {
+      proposal.status = "Assigned";
+    }
+    removeProposalFromQueue(proposalId);
+    return {
+      ok: true,
+      assignedToUserId: assignToUserId,
+      assignedQueueId: null,
+    };
+  }
+
+  if (assignToQueueId) {
+    const queueResult = assignToQueue({ tenantId, proposalId, queueId: assignToQueueId });
+    if (!queueResult.ok) {
+      return { ok: false, error: queueResult.error };
+    }
+    proposal.assignedToUserId = null;
+    proposal.assignedToName = null;
+    if (proposal.status === "New") {
+      proposal.status = "Assigned";
+    }
+    return {
+      ok: true,
+      assignedToUserId: null,
+      assignedQueueId: assignToQueueId,
+    };
+  }
+
+  return { ok: false, error: "Invalid assignment" };
+}
+
+export function getProposalById(proposalId: string): Proposal | undefined {
+  return proposals.find((p) => p.id === proposalId);
 }

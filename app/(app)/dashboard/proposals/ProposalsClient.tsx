@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { PageHeader, StatCard, DataCard, StatusBadge, EmptyState } from "@/components/app";
 import { Button } from "@/components/ui/button";
@@ -40,6 +40,9 @@ import {
   Download,
   LucideIcon,
   AlertCircle,
+  Users,
+  User,
+  Loader2,
 } from "lucide-react";
 import type { Proposal, ProposalStatus } from "@/lib/mock/proposals";
 
@@ -76,10 +79,59 @@ interface ProposalsClientProps {
   proposalCount?: number;
 }
 
+async function assignProposal(
+  proposalId: string,
+  assignToUserId?: string,
+  assignToUserName?: string,
+  assignToQueueId?: string
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetch(`/api/tenant/proposals/${proposalId}/assign`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ assignToUserId, assignToUserName, assignToQueueId }),
+    });
+    const data = await res.json();
+    return data;
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
+}
+
 export default function ProposalsClient({ proposals, error, role, proposalCount }: ProposalsClientProps) {
   const router = useRouter();
   const [filter, setFilter] = useState<FilterKey>("all");
   const [search, setSearch] = useState("");
+  const [, startTransition] = useTransition();
+  const [assigningId, setAssigningId] = useState<string | null>(null);
+
+  const canAssign = role === "tenant_admin" || role === "saas_admin";
+
+  const handleAssignToUser = async (proposalId: string) => {
+    setAssigningId(proposalId);
+    const result = await assignProposal(proposalId, "user-003", "Assessor User");
+    if (result.ok) {
+      startTransition(() => {
+        router.refresh();
+      });
+    } else {
+      alert(result.error || "Assignment failed");
+    }
+    setAssigningId(null);
+  };
+
+  const handleAssignToQueue = async (proposalId: string) => {
+    setAssigningId(proposalId);
+    const result = await assignProposal(proposalId, undefined, undefined, "queue-default");
+    if (result.ok) {
+      startTransition(() => {
+        router.refresh();
+      });
+    } else {
+      alert(result.error || "Assignment failed");
+    }
+    setAssigningId(null);
+  };
 
   const filteredProposals = proposals.filter((p) => {
     const statusKey = p.status.toLowerCase().replace(" ", "-");
@@ -317,11 +369,41 @@ export default function ProposalsClient({ proposals, error, role, proposalCount 
                             <FileText className="h-4 w-4 mr-2" />
                             View Documents
                           </DropdownMenuItem>
-                          {proposal.status === "New" && (
-                            <DropdownMenuItem>
-                              <UserPlus className="h-4 w-4 mr-2" />
-                              Assign Assessor
-                            </DropdownMenuItem>
+                          {canAssign && (proposal.status === "New" || !proposal.assignedToUserId) && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuLabel>Assign To</DropdownMenuLabel>
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  if (assigningId !== proposal.id) {
+                                    handleAssignToUser(proposal.id);
+                                  }
+                                }}
+                                className={assigningId === proposal.id ? "opacity-50 cursor-wait" : ""}
+                              >
+                                {assigningId === proposal.id ? (
+                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                ) : (
+                                  <User className="h-4 w-4 mr-2" />
+                                )}
+                                Assessor User
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  if (assigningId !== proposal.id) {
+                                    handleAssignToQueue(proposal.id);
+                                  }
+                                }}
+                                className={assigningId === proposal.id ? "opacity-50 cursor-wait" : ""}
+                              >
+                                {assigningId === proposal.id ? (
+                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                ) : (
+                                  <Users className="h-4 w-4 mr-2" />
+                                )}
+                                Default Queue
+                              </DropdownMenuItem>
+                            </>
                           )}
                           {proposal.status === "In Review" && (
                             <>
