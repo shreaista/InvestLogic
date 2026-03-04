@@ -12,6 +12,7 @@ export {
   TENANT_COSTS_READ,
   USER_MANAGE,
   USER_CREATE,
+  USER_READ,
   GROUP_MANAGE,
   QUEUE_MANAGE,
   PROPOSAL_CREATE,
@@ -35,8 +36,17 @@ export { AuthzError, AuthRequiredError, ForbiddenError, isAuthzError } from "./e
 export type { AuthzUser, AuthorizationContext } from "./context";
 export { getAuthzContext, getAuthzContextOrNull } from "./context";
 
+// Session Authz
+export type { MyAuthzData, MyAuthzResult } from "./sessionAuthz";
+export { getMyAuthz } from "./sessionAuthz";
+
 // Guards
 export {
+  AuthzHttpError,
+  requireSession,
+  requireUserRole,
+  requireTenant,
+  jsonError,
   requireRole,
   requireSaaSAdmin,
   requireTenantAdmin,
@@ -48,4 +58,7 @@ export {
   requireTenantAccess,
   requireTenantContext,
   requirePermissionInTenant,
+  canAccessProposal,
+  requireProposalAccess,
 } from "./guards";
+export type { SessionUser, Proposal } from "./guards";

@@ -1,4 +1,6 @@
-import type { Role } from "./types";
+// ─────────────────────────────────────────────────────────────────────────────
+// Navigation Configuration (Serializable - no React components)
+// ─────────────────────────────────────────────────────────────────────────────
 
 export type IconKey =
   | "layout-dashboard"
@@ -13,28 +15,53 @@ export type IconKey =
   | "settings";
 
 export interface NavItem {
-  href: string;
   label: string;
+  href: string;
   iconKey: IconKey;
-  rolesAllowed?: Role[];
+  permission?: string;
 }
 
-export const navItems: NavItem[] = [
-  { href: "/dashboard", label: "Overview", iconKey: "layout-dashboard" },
-  { href: "/dashboard/tenants", label: "Tenants", iconKey: "building-2", rolesAllowed: ["saas_admin"] },
-  { href: "/dashboard/funds", label: "Funds", iconKey: "wallet", rolesAllowed: ["tenant_admin"] },
-  { href: "/dashboard/proposals", label: "Proposals", iconKey: "file-text", rolesAllowed: ["tenant_admin", "assessor"] },
-  { href: "/dashboard/queue", label: "My Queue", iconKey: "clipboard-list", rolesAllowed: ["assessor"] },
-  { href: "/dashboard/users", label: "Users", iconKey: "users", rolesAllowed: ["saas_admin", "tenant_admin"] },
-  { href: "/dashboard/subscriptions", label: "Subscriptions", iconKey: "credit-card", rolesAllowed: ["saas_admin"] },
-  { href: "/dashboard/costs", label: "Costs", iconKey: "dollar-sign", rolesAllowed: ["saas_admin", "tenant_admin"] },
-  { href: "/dashboard/reports", label: "Reports", iconKey: "bar-chart-3" },
-];
+// ─────────────────────────────────────────────────────────────────────────────
+// Navigation by Role
+// ─────────────────────────────────────────────────────────────────────────────
 
-export function getNavItemsForRole(role: Role): NavItem[] {
-  return navItems.filter((item) => {
-    if (!item.rolesAllowed) return true;
-    return item.rolesAllowed.includes(role);
+export const NAV_BY_ROLE: Record<string, NavItem[]> = {
+  saas_admin: [
+    { label: "Overview", href: "/dashboard", iconKey: "layout-dashboard" },
+    { label: "Tenants", href: "/dashboard/tenants", iconKey: "building-2", permission: "tenant:manage" },
+    { label: "Users", href: "/dashboard/users", iconKey: "users", permission: "user:read" },
+    { label: "Subscriptions", href: "/dashboard/subscriptions", iconKey: "credit-card" },
+    { label: "Costs", href: "/dashboard/costs", iconKey: "dollar-sign", permission: "tenant:costs:read" },
+    { label: "Reports", href: "/dashboard/reports", iconKey: "bar-chart-3" },
+  ],
+  tenant_admin: [
+    { label: "Overview", href: "/dashboard", iconKey: "layout-dashboard" },
+    { label: "Funds", href: "/dashboard/funds", iconKey: "wallet" },
+    { label: "Proposals", href: "/dashboard/proposals", iconKey: "file-text" },
+    { label: "Users", href: "/dashboard/users", iconKey: "users", permission: "user:read" },
+    { label: "Costs", href: "/dashboard/costs", iconKey: "dollar-sign", permission: "tenant:costs:read" },
+    { label: "Reports", href: "/dashboard/reports", iconKey: "bar-chart-3" },
+  ],
+  assessor: [
+    { label: "Overview", href: "/dashboard", iconKey: "layout-dashboard" },
+    { label: "Proposals", href: "/dashboard/proposals", iconKey: "file-text" },
+    { label: "My Queue", href: "/dashboard/queue", iconKey: "clipboard-list" },
+    { label: "Reports", href: "/dashboard/reports", iconKey: "bar-chart-3" },
+  ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helper Functions
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function getNavItemsForRole(role: string): NavItem[] {
+  return NAV_BY_ROLE[role] ?? NAV_BY_ROLE.assessor;
+}
+
+export function filterNavByPermissions(items: NavItem[], permissions: string[]): NavItem[] {
+  return items.filter((item) => {
+    if (!item.permission) return true;
+    return permissions.includes(item.permission);
   });
 }
 

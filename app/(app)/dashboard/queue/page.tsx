@@ -1,17 +1,17 @@
 import { redirect } from "next/navigation";
-import { getAuthzContextOrNull, ROLES } from "@/lib/authz";
+import { getMyAuthz } from "@/lib/authz";
 import QueueClient from "./QueueClient";
 
 export default async function QueuePage() {
-  const ctx = await getAuthzContextOrNull();
+  const authz = await getMyAuthz();
 
-  if (!ctx) {
+  if (!authz.ok) {
     redirect("/login");
   }
 
-  const allowedRoles = [ROLES.SAAS_ADMIN, ROLES.TENANT_ADMIN, ROLES.ASSESSOR];
+  const { role } = authz.data;
 
-  if (!allowedRoles.includes(ctx.role)) {
+  if (role !== "assessor") {
     redirect("/dashboard");
   }
 

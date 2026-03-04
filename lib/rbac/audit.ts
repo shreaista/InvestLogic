@@ -31,6 +31,7 @@ export type AuditAction =
   | "fund.pause"
   // Proposal actions
   | "proposal.create"
+  | "proposal.view"
   | "proposal.update"
   | "proposal.delete"
   | "proposal.assign"

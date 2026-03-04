@@ -10,10 +10,11 @@ import { Sidebar, MobileSidebar } from "./Sidebar";
 interface AppShellProps {
   user: UserInfo;
   navItems: NavItem[];
+  permissions: string[];
   children: React.ReactNode;
 }
 
-export function AppShell({ user, navItems, children }: AppShellProps) {
+export function AppShell({ user, navItems, permissions, children }: AppShellProps) {
   const pathname = usePathname();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -31,12 +32,14 @@ export function AppShell({ user, navItems, children }: AppShellProps) {
       <div className="flex">
         <Sidebar
           items={navItems}
+          permissions={permissions}
           collapsed={sidebarCollapsed}
           onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
         />
 
         <MobileSidebar
           items={navItems}
+          permissions={permissions}
           open={mobileMenuOpen}
           onClose={() => setMobileMenuOpen(false)}
         />

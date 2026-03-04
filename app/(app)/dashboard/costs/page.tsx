@@ -1,13 +1,19 @@
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/currentUser";
+import { getMyAuthz } from "@/lib/authz";
 import CostsClient from "./CostsClient";
 
 export default async function CostsPage() {
-  const user = await getCurrentUser();
+  const authz = await getMyAuthz();
 
-  if (!user) {
+  if (!authz.ok) {
     redirect("/login");
   }
 
-  return <CostsClient role={user.role} />;
+  const { role, permissions } = authz.data;
+
+  if (!permissions.includes("tenant:costs:read")) {
+    redirect("/dashboard");
+  }
+
+  return <CostsClient role={role} />;
 }

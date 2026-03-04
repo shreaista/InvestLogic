@@ -1,10 +1,77 @@
 import "server-only";
 
+import { NextResponse } from "next/server";
 import type { RoleKey } from "./roles";
 import { ROLES } from "./roles";
 import type { Permission } from "./permissions";
 import type { AuthorizationContext } from "./context";
 import { ForbiddenError } from "./errors";
+import { getSessionSafe } from "@/lib/session";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HTTP Error Class for API Routes
+// ─────────────────────────────────────────────────────────────────────────────
+
+export class AuthzHttpError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string
+  ) {
+    super(message);
+    this.name = "AuthzHttpError";
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Session & User Guards (for API routes)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface SessionUser {
+  userId?: string;
+  email?: string;
+  name?: string;
+  role: RoleKey;
+  tenantId?: string;
+}
+
+export async function requireSession(): Promise<SessionUser> {
+  const { user } = await getSessionSafe();
+  if (!user) {
+    throw new AuthzHttpError(401, "Authentication required");
+  }
+  return user as SessionUser;
+}
+
+export function requireUserRole(user: SessionUser, allowedRoles: RoleKey[]): void {
+  if (!allowedRoles.includes(user.role)) {
+    throw new AuthzHttpError(403, "Forbidden");
+  }
+}
+
+export function requireTenant(user: SessionUser): string {
+  if (!user.tenantId) {
+    throw new AuthzHttpError(400, "Tenant context required");
+  }
+  return user.tenantId;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// JSON Error Response Helper
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function jsonError(err: unknown): NextResponse {
+  if (err instanceof AuthzHttpError) {
+    return NextResponse.json(
+      { ok: false, error: err.message },
+      { status: err.status }
+    );
+  }
+  console.error("[jsonError]", err);
+  return NextResponse.json(
+    { ok: false, error: "Internal server error" },
+    { status: 500 }
+  );
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Role Guards
@@ -99,4 +166,55 @@ export function requirePermissionInTenant(
 ): void {
   requirePermission(ctx, permission);
   requireTenantAccess(ctx, tenantId);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Proposal Access Guards
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface Proposal {
+  id: string;
+  tenantId: string;
+  assignedAssessorId?: string;
+  queueAssessorIds?: string[];
+}
+
+export function canAccessProposal(ctx: AuthorizationContext, proposal: Proposal): boolean {
+  if (ctx.role === ROLES.SAAS_ADMIN) {
+    return true;
+  }
+
+  if (ctx.tenantId !== proposal.tenantId) {
+    return false;
+  }
+
+  if (ctx.role === ROLES.TENANT_ADMIN) {
+    return true;
+  }
+
+  if (ctx.role === ROLES.ASSESSOR) {
+    const userId = ctx.user.id;
+    if (!userId) return false;
+
+    if (proposal.assignedAssessorId === userId) {
+      return true;
+    }
+
+    if (proposal.queueAssessorIds?.includes(userId)) {
+      return true;
+    }
+
+    return false;
+  }
+
+  return false;
+}
+
+export function requireProposalAccess(ctx: AuthorizationContext, proposal: Proposal): void {
+  if (!canAccessProposal(ctx, proposal)) {
+    throw new ForbiddenError(
+      `Access denied to proposal ${proposal.id}`,
+      "Access denied"
+    );
+  }
 }

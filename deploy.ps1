@@ -61,8 +61,12 @@ if (git status --porcelain) {
 $TAG = Get-Date -Format "yyyyMMddHHmmss"
 $FULL_IMAGE = "$ACR.azurecr.io/$IMAGE`:$TAG"
 
+# Set build-time env var for deploy timestamp (avoids React hydration errors)
+$env:NEXT_PUBLIC_DEPLOY_TS = $TAG
+
 Write-Host "Building image: $FULL_IMAGE"
-az acr build -r $ACR -t $FULL_IMAGE .
+Write-Host "NEXT_PUBLIC_DEPLOY_TS: $TAG"
+az acr build -r $ACR -t $FULL_IMAGE --build-arg NEXT_PUBLIC_DEPLOY_TS=$TAG .
 
 # 4) Update Container App to new image
 Write-Host "Updating Container App: $APP"

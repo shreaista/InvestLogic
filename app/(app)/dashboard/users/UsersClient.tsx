@@ -72,6 +72,12 @@ export default function UsersClient() {
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center gap-3">
+        <span className="inline-flex items-center rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700 ring-1 ring-inset ring-amber-600/20">
+          Tenant Admin only
+        </span>
+      </div>
+
       <PageHeader
         title="Team Members"
         subtitle="Manage your platform users"

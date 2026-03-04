@@ -7,6 +7,11 @@ RUN npm ci --include=dev
 # Stage 2: Build the application
 FROM node:20-alpine AS builder
 WORKDIR /app
+
+# Build-time env var for deploy timestamp
+ARG NEXT_PUBLIC_DEPLOY_TS
+ENV NEXT_PUBLIC_DEPLOY_TS=$NEXT_PUBLIC_DEPLOY_TS
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN chmod -R +x node_modules/.bin && npm run build

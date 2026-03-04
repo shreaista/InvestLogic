@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  getAuthzContext,
-  isAuthzError,
-  requirePermission,
-  USER_CREATE,
+  requireSession,
+  requireUserRole,
+  requireTenant,
+  jsonError,
+  AuthzHttpError,
 } from "@/lib/authz";
 import { assertCanCreateAssessor, isEntitlementError } from "@/lib/entitlements";
 
@@ -17,84 +18,35 @@ interface CreateUserBody {
 
 export async function POST(request: NextRequest) {
   try {
-    // 1. Authenticate
-    let ctx;
-    try {
-      ctx = await getAuthzContext();
-    } catch (error) {
-      if (isAuthzError(error)) {
-        return NextResponse.json(
-          { ok: false, error: "Authentication required" },
-          { status: 401 }
-        );
-      }
-      throw error;
-    }
+    const user = await requireSession();
+    requireUserRole(user, ["tenant_admin", "saas_admin"]);
+    const tenantId = requireTenant(user);
 
-    // 2. Require tenant context
-    if (!ctx.tenantId) {
-      return NextResponse.json(
-        { ok: false, error: "Tenant context required" },
-        { status: 400 }
-      );
-    }
-
-    // 3. Enforce permission
-    try {
-      requirePermission(ctx, USER_CREATE);
-    } catch {
-      return NextResponse.json(
-        { ok: false, error: "Forbidden" },
-        { status: 403 }
-      );
-    }
-
-    // 4. Parse and validate body
     let body: CreateUserBody;
     try {
       body = await request.json();
     } catch {
-      return NextResponse.json(
-        { ok: false, error: "Invalid JSON body" },
-        { status: 400 }
-      );
+      throw new AuthzHttpError(400, "Invalid JSON body");
     }
 
     if (!body.email || typeof body.email !== "string") {
-      return NextResponse.json(
-        { ok: false, error: "Validation error: email is required" },
-        { status: 422 }
-      );
+      throw new AuthzHttpError(422, "Validation error: email is required");
     }
 
     if (!body.role || !["tenant_admin", "assessor"].includes(body.role)) {
-      return NextResponse.json(
-        { ok: false, error: "Validation error: role must be 'tenant_admin' or 'assessor'" },
-        { status: 422 }
-      );
+      throw new AuthzHttpError(422, "Validation error: role must be 'tenant_admin' or 'assessor'");
     }
 
-    // 5. Deny creating saas_admin via this endpoint
     if ((body.role as string) === "saas_admin") {
-      return NextResponse.json(
-        { ok: false, error: "Cannot create saas_admin via this endpoint" },
-        { status: 403 }
-      );
+      throw new AuthzHttpError(403, "Cannot create saas_admin via this endpoint");
     }
 
-    // 6. Enforce maxAssessors entitlement for assessor role
     if (body.role === "assessor") {
       // TODO: Replace with DB count later
-      // e.g., const currentAssessorCount = await db.users.count({ where: { tenantId: ctx.tenantId, role: 'assessor' } });
       const currentAssessorCount = 0;
-
-      assertCanCreateAssessor(ctx, currentAssessorCount);
+      assertCanCreateAssessor({ tenantId, role: user.role } as Parameters<typeof assertCanCreateAssessor>[0], currentAssessorCount);
     }
 
-    // TODO: Actually create user in DB
-    // await db.users.create({ email: body.email, name: body.name, role: body.role, tenantId: ctx.tenantId });
-
-    // 7. Success
     return NextResponse.json({
       ok: true,
       data: { created: true },
@@ -106,11 +58,6 @@ export async function POST(request: NextRequest) {
         { status: error.status }
       );
     }
-
-    console.error("[POST /api/tenant/users]", error);
-    return NextResponse.json(
-      { ok: false, error: "Internal server error" },
-      { status: 500 }
-    );
+    return jsonError(error);
   }
 }

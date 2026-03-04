@@ -35,14 +35,26 @@ const iconMap: Record<IconKey, LucideIcon> = {
   "settings": Settings,
 };
 
+function filterItemsByPermission(
+  items: NavItem[],
+  permissions: string[]
+): NavItem[] {
+  return items.filter((item) => {
+    if (!item.permission) return true;
+    return permissions.includes(item.permission);
+  });
+}
+
 interface SidebarProps {
   items: NavItem[];
+  permissions: string[];
   collapsed: boolean;
   onToggle: () => void;
 }
 
-export function Sidebar({ items, collapsed, onToggle }: SidebarProps) {
+export function Sidebar({ items, permissions, collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
+  const filteredItems = filterItemsByPermission(items, permissions);
 
   return (
     <aside
@@ -53,7 +65,7 @@ export function Sidebar({ items, collapsed, onToggle }: SidebarProps) {
     >
       <div className="flex-1 py-4 overflow-y-auto">
         <nav className="flex flex-col gap-1 px-3">
-          {items.map((item) => {
+          {filteredItems.map((item) => {
             const Icon = iconMap[item.iconKey];
             const isActive = pathname === item.href;
 
@@ -110,12 +122,14 @@ export function Sidebar({ items, collapsed, onToggle }: SidebarProps) {
 
 interface MobileSidebarProps {
   items: NavItem[];
+  permissions: string[];
   open: boolean;
   onClose: () => void;
 }
 
-export function MobileSidebar({ items, open, onClose }: MobileSidebarProps) {
+export function MobileSidebar({ items, permissions, open, onClose }: MobileSidebarProps) {
   const pathname = usePathname();
+  const filteredItems = filterItemsByPermission(items, permissions);
 
   if (!open) return null;
 
@@ -143,7 +157,7 @@ export function MobileSidebar({ items, open, onClose }: MobileSidebarProps) {
         </div>
 
         <nav className="flex flex-col gap-1 p-4">
-          {items.map((item) => {
+          {filteredItems.map((item) => {
             const Icon = iconMap[item.iconKey];
             const isActive = pathname === item.href;
 

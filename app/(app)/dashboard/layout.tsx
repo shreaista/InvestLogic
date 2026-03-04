@@ -1,29 +1,35 @@
 import { redirect } from "next/navigation";
-import { getSessionSafe } from "@/lib/session";
-import { getNavItemsForRole } from "@/lib/nav";
+import { getMyAuthz } from "@/lib/authz";
+import { getNavItemsForRole, filterNavByPermissions } from "@/lib/nav";
 import { AppShell } from "@/components/app-shell";
+import { getSessionSafe } from "@/lib/session";
 
 export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { user } = await getSessionSafe();
+  const authz = await getMyAuthz();
 
-  if (!user) {
+  if (!authz.ok) {
     redirect("/login");
   }
 
-  const navItems = getNavItemsForRole(user.role);
+  const { role, permissions } = authz.data;
+
+  const { user } = await getSessionSafe();
+
+  const navItems = getNavItemsForRole(role);
+  const filteredNavItems = filterNavByPermissions(navItems, permissions);
 
   const userInfo = {
-    name: user.name,
-    email: user.email,
-    role: user.role,
+    name: user?.name ?? "",
+    email: user?.email ?? "",
+    role,
   };
 
   return (
-    <AppShell user={userInfo} navItems={navItems}>
+    <AppShell user={userInfo} navItems={filteredNavItems} permissions={permissions}>
       {children}
     </AppShell>
   );
