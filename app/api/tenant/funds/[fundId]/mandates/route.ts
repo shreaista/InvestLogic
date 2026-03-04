@@ -1,74 +1,64 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getAuthzContext, jsonError, AuthzHttpError } from "@/lib/authz";
+import { requireActiveTenantId } from "@/lib/tenantContext";
 import {
-  requireSession,
-  requireUserRole,
-  requireTenant,
-  jsonError,
-  AuthzHttpError,
-  requireRBACPermission,
-  RBAC_PERMISSIONS,
-} from "@/lib/authz";
-import { getTenantEntitlements } from "@/lib/entitlements/demoEntitlements";
-import {
-  uploadBlob,
-  listBlobs,
-  buildFundMandatePath,
-  getFundMandatesPrefix,
-  getDefaultContainer,
-  type BlobMetadata,
-} from "@/lib/storage/azureBlob";
-import { logAudit } from "@/lib/audit";
+  getFundById,
+  getLinkedMandates,
+  getFundMandateLinks,
+  linkMandateToFund,
+  unlinkMandateFromFund,
+} from "@/lib/mock/fundsStore";
+import { listFundMandates, getFundMandateById } from "@/lib/mock/fundMandates";
 
 interface RouteContext {
   params: Promise<{ fundId: string }>;
 }
 
-const ALLOWED_CONTENT_TYPES = [
-  "application/pdf",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-];
-
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-
-// ─────────────────────────────────────────────────────────────────────────────
-// GET /api/tenant/funds/:fundId/mandates - List mandate files
-// ─────────────────────────────────────────────────────────────────────────────
-
 export async function GET(request: NextRequest, context: RouteContext) {
   try {
-    const session = await requireSession();
-    requireUserRole(session, ["tenant_admin", "saas_admin"]);
-    requireRBACPermission(session, RBAC_PERMISSIONS.FUND_MANDATE_READ);
-    const tenantId = requireTenant(session);
-    const { fundId } = await context.params;
+    const ctx = await getAuthzContext();
 
-    const entitlements = getTenantEntitlements(tenantId);
-    if (!entitlements.canManageFundMandates) {
-      throw new AuthzHttpError(
-        403,
-        "Fund mandate management not enabled for this tenant"
+    if (!ctx.user) {
+      return NextResponse.json(
+        { ok: false, error: "Authentication required" },
+        { status: 401 }
       );
     }
 
-    const container = getDefaultContainer();
-    const prefix = getFundMandatesPrefix(tenantId, fundId);
+    const tenantId = await requireActiveTenantId();
+    const { fundId } = await context.params;
 
-    const blobs = await listBlobs({ container, prefix });
+    if (ctx.role !== "tenant_admin" && ctx.role !== "saas_admin") {
+      throw new AuthzHttpError(403, "Only administrators can view fund mandates");
+    }
 
-    const mandates: BlobMetadata[] = blobs.map((blob) => ({
-      path: blob.path,
-      lastModified: blob.lastModified,
-      size: blob.size,
-      contentType: blob.contentType,
-      fileName: blob.fileName,
-    }));
+    const fund = getFundById(tenantId, fundId);
+    if (!fund) {
+      throw new AuthzHttpError(404, "Fund not found");
+    }
+
+    const linkedMandateIds = getLinkedMandates(tenantId, fundId);
+    const links = getFundMandateLinks(tenantId, fundId);
+    const allMandates = listFundMandates(tenantId);
+
+    const linkedMandates = linkedMandateIds
+      .map((id) => {
+        const mandate = getFundMandateById(tenantId, id);
+        const link = links.find((l) => l.mandateId === id);
+        return mandate ? { ...mandate, linkedAt: link?.linkedAt } : null;
+      })
+      .filter(Boolean);
+
+    const availableMandates = allMandates.filter(
+      (m) => !linkedMandateIds.includes(m.id)
+    );
 
     return NextResponse.json({
       ok: true,
       data: {
-        fundId,
-        mandates,
-        count: mandates.length,
+        fund,
+        linkedMandates,
+        availableMandates,
       },
     });
   } catch (error) {
@@ -76,126 +66,85 @@ export async function GET(request: NextRequest, context: RouteContext) {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// POST /api/tenant/funds/:fundId/mandates - Upload mandate file
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface Base64UploadBody {
-  filename: string;
-  contentBase64: string;
-  contentType: string;
-}
-
 export async function POST(request: NextRequest, context: RouteContext) {
   try {
-    const session = await requireSession();
-    requireUserRole(session, ["tenant_admin", "saas_admin"]);
-    requireRBACPermission(session, RBAC_PERMISSIONS.FUND_MANDATE_UPLOAD);
-    const tenantId = requireTenant(session);
-    const { fundId } = await context.params;
+    const ctx = await getAuthzContext();
 
-    const entitlements = getTenantEntitlements(tenantId);
-    if (!entitlements.canManageFundMandates) {
-      throw new AuthzHttpError(
-        403,
-        "Fund mandate management not enabled for this tenant"
+    if (!ctx.user) {
+      return NextResponse.json(
+        { ok: false, error: "Authentication required" },
+        { status: 401 }
       );
     }
 
-    const contentTypeHeader = request.headers.get("content-type") || "";
+    const tenantId = await requireActiveTenantId();
+    const { fundId } = await context.params;
 
-    let fileName: string;
-    let contentType: string;
-    let buffer: Buffer;
-
-    if (contentTypeHeader.includes("multipart/form-data")) {
-      const formData = await request.formData();
-      const file = formData.get("file");
-
-      if (!file || !(file instanceof File)) {
-        throw new AuthzHttpError(400, "No file provided");
-      }
-
-      if (!ALLOWED_CONTENT_TYPES.includes(file.type)) {
-        throw new AuthzHttpError(
-          400,
-          "Invalid file type. Only PDF and DOCX files are allowed."
-        );
-      }
-
-      if (file.size > MAX_FILE_SIZE) {
-        throw new AuthzHttpError(400, "File size exceeds 10MB limit");
-      }
-
-      fileName = file.name;
-      contentType = file.type;
-      const arrayBuffer = await file.arrayBuffer();
-      buffer = Buffer.from(arrayBuffer);
-    } else {
-      let body: Base64UploadBody;
-      try {
-        body = await request.json();
-      } catch {
-        throw new AuthzHttpError(400, "Invalid JSON body");
-      }
-
-      if (!body.filename || !body.contentBase64 || !body.contentType) {
-        throw new AuthzHttpError(
-          400,
-          "Missing required fields: filename, contentBase64, contentType"
-        );
-      }
-
-      if (!ALLOWED_CONTENT_TYPES.includes(body.contentType)) {
-        throw new AuthzHttpError(
-          400,
-          "Invalid file type. Only PDF and DOCX files are allowed."
-        );
-      }
-
-      fileName = body.filename;
-      contentType = body.contentType;
-      buffer = Buffer.from(body.contentBase64, "base64");
-
-      if (buffer.length > MAX_FILE_SIZE) {
-        throw new AuthzHttpError(400, "File size exceeds 10MB limit");
-      }
+    if (ctx.role !== "tenant_admin" && ctx.role !== "saas_admin") {
+      throw new AuthzHttpError(403, "Only administrators can link mandates");
     }
 
-    const container = getDefaultContainer();
-    const blobPath = buildFundMandatePath(tenantId, fundId, fileName);
+    const body = await request.json();
+    const { mandateId } = body;
 
-    const result = await uploadBlob({
-      container,
-      path: blobPath,
-      contentType,
-      buffer,
-    });
+    if (!mandateId || typeof mandateId !== "string") {
+      throw new AuthzHttpError(400, "mandateId is required");
+    }
 
-    logAudit({
-      action: "fund_mandate.upload",
-      actorUserId: session.userId || "",
-      actorEmail: session.email,
-      tenantId,
-      resourceType: "fund_mandate",
-      resourceId: fundId,
-      details: {
-        path: result.path,
-        fileName,
-        sizeBytes: result.sizeBytes,
-        contentType,
-      },
-    });
+    const mandate = getFundMandateById(tenantId, mandateId);
+    if (!mandate) {
+      throw new AuthzHttpError(404, "Mandate not found");
+    }
+
+    const result = linkMandateToFund(tenantId, fundId, mandateId, ctx.user.id || "");
+
+    if (!result.ok) {
+      throw new AuthzHttpError(400, result.error || "Failed to link mandate");
+    }
 
     return NextResponse.json({
       ok: true,
-      data: {
-        fundId,
-        path: result.path,
-        fileName,
-        sizeBytes: result.sizeBytes,
-        uploadedAt: result.uploadedAt,
-      },
+      data: { link: result.link },
+    });
+  } catch (error) {
+    return jsonError(error);
+  }
+}
+
+export async function DELETE(request: NextRequest, context: RouteContext) {
+  try {
+    const ctx = await getAuthzContext();
+
+    if (!ctx.user) {
+      return NextResponse.json(
+        { ok: false, error: "Authentication required" },
+        { status: 401 }
+      );
+    }
+
+    const tenantId = await requireActiveTenantId();
+    const { fundId } = await context.params;
+
+    if (ctx.role !== "tenant_admin" && ctx.role !== "saas_admin") {
+      throw new AuthzHttpError(403, "Only administrators can unlink mandates");
+    }
+
+    const { searchParams } = new URL(request.url);
+    const mandateId = searchParams.get("mandateId");
+
+    if (!mandateId) {
+      throw new AuthzHttpError(400, "mandateId query parameter is required");
+    }
+
+    const unlinked = unlinkMandateFromFund(tenantId, fundId, mandateId);
+
+    if (!unlinked) {
+      throw new AuthzHttpError(404, "Link not found");
+    }
+
+    return NextResponse.json({
+      ok: true,
+      data: { message: "Mandate unlinked successfully" },
     });
   } catch (error) {
     return jsonError(error);

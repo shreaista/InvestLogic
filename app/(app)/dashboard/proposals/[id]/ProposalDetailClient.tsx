@@ -48,6 +48,31 @@ import {
   Info,
 } from "lucide-react";
 import type { Proposal, ProposalStatus } from "@/lib/mock/proposals";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+// Types for fund selection
+interface FundOption {
+  id: string;
+  name: string;
+  code?: string;
+  status: string;
+}
+
+interface FundMandateInfo {
+  id: string;
+  name: string;
+  strategy: string;
+  geography: string;
+  minTicket: number;
+  maxTicket: number;
+  status: string;
+}
 
 // NEW: Types for fund mandate
 interface MandateTemplateFile {
@@ -269,6 +294,56 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
 
     setAssigning(false);
   };
+
+  // Fund selection state
+  const [funds, setFunds] = useState<FundOption[]>([]);
+  const [selectedFundId, setSelectedFundId] = useState<string>("");
+  const [fundMandates, setFundMandates] = useState<FundMandateInfo[]>([]);
+  const [loadingFunds, setLoadingFunds] = useState(false);
+  const [loadingFundMandates, setLoadingFundMandates] = useState(false);
+
+  // Load funds on mount
+  useEffect(() => {
+    const loadFunds = async () => {
+      setLoadingFunds(true);
+      try {
+        const res = await fetch("/api/tenant/funds");
+        const data = await res.json();
+        if (data.ok) {
+          setFunds(data.data.funds || []);
+        }
+      } catch {
+        console.error("Failed to load funds");
+      }
+      setLoadingFunds(false);
+    };
+    loadFunds();
+  }, []);
+
+  // Load fund mandates when fund is selected
+  useEffect(() => {
+    if (!selectedFundId) {
+      return;
+    }
+
+    const loadFundMandates = async () => {
+      setLoadingFundMandates(true);
+      try {
+        const res = await fetch(`/api/tenant/funds/${selectedFundId}/mandates`);
+        const data = await res.json();
+        if (data.ok) {
+          setFundMandates(data.data.linkedMandates || []);
+        } else {
+          setFundMandates([]);
+        }
+      } catch {
+        console.error("Failed to load fund mandates");
+        setFundMandates([]);
+      }
+      setLoadingFundMandates(false);
+    };
+    loadFundMandates();
+  }, [selectedFundId]);
 
   // NEW: Mandate state
   const [mandate, setMandate] = useState<MandateData | null>(null);
@@ -631,6 +706,25 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
               <p className="text-sm text-muted-foreground">{proposal.fund}</p>
             </div>
             <div>
+              <p className="text-sm font-medium mb-2">Select Fund to View Mandates</p>
+              <Select
+                value={selectedFundId}
+                onValueChange={setSelectedFundId}
+                disabled={loadingFunds}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder={loadingFunds ? "Loading funds..." : "Select a fund"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {funds.map((fund) => (
+                    <SelectItem key={fund.id} value={fund.id}>
+                      {fund.name} {fund.code ? `(${fund.code})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
               <p className="text-sm font-medium mb-2">Priority</p>
               <StatusBadge
                 variant={
@@ -662,6 +756,62 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
           </CardContent>
         </Card>
       </div>
+
+      {/* Fund Mandates Panel - shows when a fund is selected */}
+      {selectedFundId && (
+        <DataCard
+          title={`Mandates for ${funds.find(f => f.id === selectedFundId)?.name || "Selected Fund"}`}
+          description="Mandate templates linked to the selected fund (read-only)"
+        >
+          {loadingFundMandates ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <span className="ml-2 text-muted-foreground">Loading mandates...</span>
+            </div>
+          ) : fundMandates.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <FileStack className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p>No mandates linked to this fund.</p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Mandate</TableHead>
+                  <TableHead>Strategy</TableHead>
+                  <TableHead>Geography</TableHead>
+                  <TableHead>Ticket Range</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {fundMandates.map((m) => (
+                  <TableRow key={m.id}>
+                    <TableCell>
+                      <div>
+                        <p className="font-medium">{m.name}</p>
+                        <p className="text-xs text-muted-foreground font-mono">{m.id}</p>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{m.strategy}</TableCell>
+                    <TableCell className="text-muted-foreground">{m.geography}</TableCell>
+                    <TableCell className="text-muted-foreground tabular-nums">
+                      {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0 }).format(m.minTicket)} - {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0 }).format(m.maxTicket)}
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge
+                        variant={m.status === "active" ? "success" : m.status === "draft" ? "warning" : "muted"}
+                      >
+                        {m.status.charAt(0).toUpperCase() + m.status.slice(1)}
+                      </StatusBadge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </DataCard>
+      )}
 
       {/* Assignments Panel - Tenant Admin Only */}
       {canAssign && (

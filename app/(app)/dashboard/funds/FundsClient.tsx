@@ -45,8 +45,6 @@ import {
   Settings,
   FileText,
   PauseCircle,
-  ArrowRight,
-  Sparkles,
   ScrollText,
   Edit,
   CheckCircle,
@@ -60,82 +58,14 @@ import {
   History,
 } from "lucide-react";
 import type { FundMandateTemplate, FundMandateStatus } from "@/lib/mock/fundMandates";
+import type { Fund } from "@/lib/mock/fundsStore";
+import Link from "next/link";
 
-const funds = [
-  {
-    id: "F-001",
-    name: "General Fund 2026",
-    strategy: "Diversified Impact",
-    aum: "$2,500,000",
-    allocated: "$1,850,000",
-    available: "$650,000",
-    capacity: 74,
-    status: "Active",
-    proposals: 45,
-  },
-  {
-    id: "F-002",
-    name: "Innovation Grant",
-    strategy: "Technology Focus",
-    aum: "$500,000",
-    allocated: "$320,000",
-    available: "$180,000",
-    capacity: 64,
-    status: "Active",
-    proposals: 12,
-  },
-  {
-    id: "F-003",
-    name: "Community Development",
-    strategy: "Local Impact",
-    aum: "$750,000",
-    allocated: "$680,000",
-    available: "$70,000",
-    capacity: 91,
-    status: "Limited",
-    proposals: 28,
-  },
-  {
-    id: "F-004",
-    name: "Emergency Reserve",
-    strategy: "Rapid Response",
-    aum: "$200,000",
-    allocated: "$45,000",
-    available: "$155,000",
-    capacity: 23,
-    status: "Active",
-    proposals: 5,
-  },
-  {
-    id: "F-005",
-    name: "Youth Programs",
-    strategy: "Education & Youth",
-    aum: "$400,000",
-    allocated: "$280,000",
-    available: "$120,000",
-    capacity: 70,
-    status: "Active",
-    proposals: 18,
-  },
-  {
-    id: "F-006",
-    name: "Healthcare Initiative",
-    strategy: "Health & Wellness",
-    aum: "$600,000",
-    allocated: "$600,000",
-    available: "$0",
-    capacity: 100,
-    status: "Closed",
-    proposals: 22,
-  },
-];
-
-type StatusKey = "Active" | "Limited" | "Closed";
+type StatusKey = "active" | "inactive";
 
 const statusVariants: Record<StatusKey, "success" | "warning" | "muted"> = {
-  Active: "success",
-  Limited: "warning",
-  Closed: "muted",
+  active: "success",
+  inactive: "muted",
 };
 
 const mandateStatusVariants: Record<FundMandateStatus, "success" | "warning" | "muted"> = {
@@ -176,18 +106,22 @@ interface BlobMandate {
 }
 
 interface FundsClientProps {
+  funds: Fund[];
   fundMandatesEnabled: boolean;
   canManageFundMandates: boolean;
   mandates: FundMandateTemplate[];
 }
 
-export default function FundsClient({ fundMandatesEnabled, canManageFundMandates, mandates }: FundsClientProps) {
+export default function FundsClient({ funds: initialFunds, fundMandatesEnabled, canManageFundMandates, mandates }: FundsClientProps) {
   const router = useRouter();
+  const [funds] = useState<Fund[]>(initialFunds);
   const [view, setView] = useState<"grid" | "table">("grid");
   const [activeTab, setActiveTab] = useState<"funds" | "mandates">("funds");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isCreateFundOpen, setIsCreateFundOpen] = useState(false);
   const [, startTransition] = useTransition();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [newFund, setNewFund] = useState({ name: "", code: "" });
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [uploadMessage, setUploadMessage] = useState<{ id: string; message: string; type: "success" | "error" } | null>(null);
   const [expandedVersions, setExpandedVersions] = useState<Set<string>>(new Set());
@@ -256,6 +190,30 @@ export default function FundsClient({ fundMandatesEnabled, canManageFundMandates
     if (blobFileInputRef.current) {
       blobFileInputRef.current.value = "";
     }
+  };
+
+  const handleCreateFund = async () => {
+    setIsSubmitting(true);
+    try {
+      const res = await fetch("/api/tenant/funds", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newFund),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setIsCreateFundOpen(false);
+        setNewFund({ name: "", code: "" });
+        startTransition(() => {
+          router.refresh();
+        });
+      } else {
+        alert(data.error || "Failed to create fund");
+      }
+    } catch {
+      alert("Network error");
+    }
+    setIsSubmitting(false);
   };
 
   const handleCreateMandate = async () => {
@@ -374,10 +332,8 @@ export default function FundsClient({ fundMandatesEnabled, canManageFundMandates
     });
   };
 
-  const totalAum = funds.reduce((sum, f) => sum + parseInt(f.aum.replace(/[$,]/g, "")), 0);
-  const totalAvailable = funds.reduce((sum, f) => sum + parseInt(f.available.replace(/[$,]/g, "")), 0);
-  const activeFunds = funds.filter(f => f.status === "Active").length;
-  const avgUtilization = Math.round(funds.reduce((sum, f) => sum + f.capacity, 0) / funds.length);
+  const activeFunds = funds.filter(f => f.status === "active").length;
+  const inactiveFunds = funds.filter(f => f.status === "inactive").length;
 
   return (
     <div className="space-y-6">
@@ -386,10 +342,51 @@ export default function FundsClient({ fundMandatesEnabled, canManageFundMandates
         subtitle="Manage funding sources and allocations"
         actions={
           activeTab === "funds" ? (
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Create Fund
-            </Button>
+            <Dialog open={isCreateFundOpen} onOpenChange={setIsCreateFundOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Fund
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[400px]">
+                <DialogHeader>
+                  <DialogTitle>Create New Fund</DialogTitle>
+                  <DialogDescription>
+                    Add a new fund to your organization.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="fundName">Fund Name</Label>
+                    <Input
+                      id="fundName"
+                      value={newFund.name}
+                      onChange={(e) => setNewFund({ ...newFund, name: e.target.value })}
+                      placeholder="e.g., General Fund 2026"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="fundCode">Code (optional)</Label>
+                    <Input
+                      id="fundCode"
+                      value={newFund.code}
+                      onChange={(e) => setNewFund({ ...newFund, code: e.target.value })}
+                      placeholder="e.g., GF26"
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsCreateFundOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleCreateFund} disabled={isSubmitting || !newFund.name.trim()}>
+                    {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                    Create Fund
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           ) : fundMandatesEnabled ? (
             <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
               <DialogTrigger asChild>
@@ -496,30 +493,30 @@ export default function FundsClient({ fundMandatesEnabled, canManageFundMandates
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
-          title="Total AUM"
-          value={`$${(totalAum / 1000000).toFixed(1)}M`}
-          description="Assets under management"
+          title="Total Funds"
+          value={funds.length.toString()}
+          description="Funds in your organization"
           icon={Wallet}
-        />
-        <StatCard
-          title="Available Capital"
-          value={`$${(totalAvailable / 1000).toFixed(0)}K`}
-          description="Ready for allocation"
-          trend="neutral"
-          icon={DollarSign}
         />
         <StatCard
           title="Active Funds"
           value={activeFunds.toString()}
-          description={`of ${funds.length} total`}
+          description="Currently active"
           trend="neutral"
           icon={Target}
         />
         <StatCard
-          title="Avg Utilization"
-          value={`${avgUtilization}%`}
-          description="Across all funds"
-          trend="up"
+          title="Inactive Funds"
+          value={inactiveFunds.toString()}
+          description="Paused or closed"
+          trend="neutral"
+          icon={DollarSign}
+        />
+        <StatCard
+          title="Mandate Templates"
+          value={mandates.length.toString()}
+          description="Available templates"
+          trend="neutral"
           icon={TrendingUp}
         />
       </div>
@@ -530,7 +527,7 @@ export default function FundsClient({ fundMandatesEnabled, canManageFundMandates
             {funds.length} Funds
           </Badge>
           <span className="text-sm text-muted-foreground">
-            {activeFunds} active, {funds.filter(f => f.status === "Limited").length} limited, {funds.filter(f => f.status === "Closed").length} closed
+            {activeFunds} active, {inactiveFunds} inactive
           </span>
         </div>
 
@@ -564,73 +561,37 @@ export default function FundsClient({ fundMandatesEnabled, canManageFundMandates
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <CardTitle className="text-base truncate">{fund.name}</CardTitle>
-                    <CardDescription className="truncate">{fund.strategy}</CardDescription>
+                    <CardDescription className="truncate font-mono text-xs">
+                      {fund.code || fund.id}
+                    </CardDescription>
                   </div>
-                  <StatusBadge variant={statusVariants[fund.status as StatusKey]} dot>
-                    {fund.status}
+                  <StatusBadge variant={statusVariants[fund.status]} dot>
+                    {fund.status.charAt(0).toUpperCase() + fund.status.slice(1)}
                   </StatusBadge>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">AUM</p>
-                    <p className="text-lg font-semibold tabular-nums">{fund.aum}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Available</p>
-                    <p className="text-lg font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
-                      {fund.available}
-                    </p>
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between text-sm mb-2">
-                    <span className="text-muted-foreground">Capacity Used</span>
-                    <span className="font-medium tabular-nums">{fund.capacity}%</span>
-                  </div>
-                  <div className="h-2.5 bg-muted rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all ${
-                        fund.capacity >= 100
-                          ? "bg-slate-400"
-                          : fund.capacity > 90
-                          ? "bg-red-500"
-                          : fund.capacity > 70
-                          ? "bg-amber-500"
-                          : "bg-emerald-500"
-                      }`}
-                      style={{ width: `${Math.min(fund.capacity, 100)}%` }}
-                    />
-                  </div>
-                  {fund.capacity < 100 && (
-                    <p className="text-xs text-muted-foreground mt-1.5">
-                      {100 - fund.capacity}% capacity remaining
-                    </p>
-                  )}
+                <div className="text-sm text-muted-foreground">
+                  Created {new Date(fund.createdAt).toLocaleDateString()}
                 </div>
 
                 <div className="flex items-center justify-between pt-3 border-t">
-                  <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                    <FileText className="h-3.5 w-3.5" />
-                    <span>{fund.proposals} proposals</span>
-                  </div>
+                  <Link href={`/dashboard/funds/${fund.id}/mandates`}>
+                    <Button variant="outline" size="sm" className="h-8">
+                      <ScrollText className="h-3.5 w-3.5 mr-1.5" />
+                      Manage Mandates
+                    </Button>
+                  </Link>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="sm" className="h-8 px-2">
-                        Actions
-                        <ArrowRight className="h-3.5 w-3.5 ml-1" />
+                        <MoreHorizontal className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem>
-                        <FileText className="h-4 w-4 mr-2" />
-                        View Details
-                      </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <Sparkles className="h-4 w-4 mr-2" />
-                        Add Capital
+                        <Edit className="h-4 w-4 mr-2" />
+                        Edit Fund
                       </DropdownMenuItem>
                       <DropdownMenuItem>
                         <Settings className="h-4 w-4 mr-2" />
@@ -639,7 +600,7 @@ export default function FundsClient({ fundMandatesEnabled, canManageFundMandates
                       <DropdownMenuSeparator />
                       <DropdownMenuItem className="text-amber-600">
                         <PauseCircle className="h-4 w-4 mr-2" />
-                        Pause Fund
+                        {fund.status === "active" ? "Deactivate" : "Activate"}
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -654,12 +615,10 @@ export default function FundsClient({ fundMandatesEnabled, canManageFundMandates
             <TableHeader>
               <TableRow>
                 <TableHead>Fund</TableHead>
-                <TableHead>Strategy</TableHead>
-                <TableHead className="text-right">AUM</TableHead>
-                <TableHead className="text-right">Available</TableHead>
-                <TableHead>Capacity</TableHead>
+                <TableHead>Code</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="text-right hidden sm:table-cell">Proposals</TableHead>
+                <TableHead>Created</TableHead>
+                <TableHead>Actions</TableHead>
                 <TableHead className="w-10"></TableHead>
               </TableRow>
             </TableHeader>
@@ -672,37 +631,24 @@ export default function FundsClient({ fundMandatesEnabled, canManageFundMandates
                       <p className="text-xs text-muted-foreground font-mono">{fund.id}</p>
                     </div>
                   </TableCell>
-                  <TableCell className="text-muted-foreground">{fund.strategy}</TableCell>
-                  <TableCell className="text-right font-medium tabular-nums">{fund.aum}</TableCell>
-                  <TableCell className="text-right tabular-nums text-emerald-600 dark:text-emerald-400">
-                    {fund.available}
+                  <TableCell className="text-muted-foreground font-mono">
+                    {fund.code || "-"}
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-2">
-                      <div className="w-20 h-2 bg-muted rounded-full overflow-hidden">
-                        <div
-                          className={`h-full rounded-full ${
-                            fund.capacity >= 100
-                              ? "bg-slate-400"
-                              : fund.capacity > 90
-                              ? "bg-red-500"
-                              : fund.capacity > 70
-                              ? "bg-amber-500"
-                              : "bg-emerald-500"
-                          }`}
-                          style={{ width: `${Math.min(fund.capacity, 100)}%` }}
-                        />
-                      </div>
-                      <span className="text-sm tabular-nums w-10">{fund.capacity}%</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge variant={statusVariants[fund.status as StatusKey]} dot>
-                      {fund.status}
+                    <StatusBadge variant={statusVariants[fund.status]} dot>
+                      {fund.status.charAt(0).toUpperCase() + fund.status.slice(1)}
                     </StatusBadge>
                   </TableCell>
-                  <TableCell className="text-right tabular-nums hidden sm:table-cell">
-                    {fund.proposals}
+                  <TableCell className="text-muted-foreground text-sm">
+                    {new Date(fund.createdAt).toLocaleDateString()}
+                  </TableCell>
+                  <TableCell>
+                    <Link href={`/dashboard/funds/${fund.id}/mandates`}>
+                      <Button variant="outline" size="sm" className="h-7">
+                        <ScrollText className="h-3 w-3 mr-1" />
+                        Mandates
+                      </Button>
+                    </Link>
                   </TableCell>
                   <TableCell>
                     <DropdownMenu>
@@ -717,12 +663,17 @@ export default function FundsClient({ fundMandatesEnabled, canManageFundMandates
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem>
-                          <FileText className="h-4 w-4 mr-2" />
-                          View Details
+                          <Edit className="h-4 w-4 mr-2" />
+                          Edit Fund
                         </DropdownMenuItem>
                         <DropdownMenuItem>
                           <Settings className="h-4 w-4 mr-2" />
                           Settings
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem className="text-amber-600">
+                          <PauseCircle className="h-4 w-4 mr-2" />
+                          {fund.status === "active" ? "Deactivate" : "Activate"}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
