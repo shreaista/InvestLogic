@@ -3,7 +3,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   getAuthzContext,
-  requireTenantAccess,
   requirePermission,
   canAccessProposal,
   jsonError,
@@ -11,6 +10,7 @@ import {
   PROPOSAL_READ,
   type Proposal,
 } from "@/lib/authz";
+import { requireActiveTenantId } from "@/lib/tenantContext";
 import { getProposalForUser } from "@/lib/mock/proposals";
 import {
   downloadProposalDocument,
@@ -33,12 +33,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
       );
     }
 
-    // Tenant isolation
-    const tenantId = ctx.tenantId ?? ctx.user.id;
-    if (!tenantId) {
-      throw new AuthzHttpError(400, "Tenant context required");
-    }
-    requireTenantAccess(ctx, tenantId);
+    // Require active tenant context
+    const tenantId = await requireActiveTenantId();
 
     // Permission check: proposal:read for downloads
     requirePermission(ctx, PROPOSAL_READ);

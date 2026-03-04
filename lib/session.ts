@@ -29,13 +29,17 @@ export async function getSessionSafe(): Promise<SessionSafeResult> {
 
     const role = payload.role || "assessor";
 
-    // For saas_admin, check if there's an override tenant cookie
-    let activeTenantId: string | undefined = payload.tenantId;
-    if (role === "saas_admin") {
-      const tenantOverride = cookieStore.get("ipa_tenant")?.value;
-      if (tenantOverride) {
-        activeTenantId = tenantOverride;
-      }
+    // Check for active tenant cookie (applies to all roles)
+    const tenantCookie = cookieStore.get("ipa_tenant")?.value;
+    
+    // For saas_admin: use cookie if set, otherwise null (global view)
+    // For tenant_admin/assessor: use cookie (required for dashboard access)
+    let activeTenantId: string | undefined;
+    if (tenantCookie) {
+      activeTenantId = tenantCookie;
+    } else if (role !== "saas_admin") {
+      // For non-saas_admin, fall back to payload tenantId if no cookie
+      activeTenantId = payload.tenantId;
     }
 
     return {

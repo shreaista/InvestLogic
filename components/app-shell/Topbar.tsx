@@ -45,7 +45,10 @@ export function Topbar({ user, pageTitle, activeTenantId, onMenuClick }: TopbarP
     router.push("/login");
   }
 
-  const isSaasAdmin = user.role === "saas_admin";
+  const showTenantSwitcher =
+    user.role === "saas_admin" ||
+    user.role === "tenant_admin" ||
+    user.role === "assessor";
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 lg:px-6">
@@ -70,8 +73,8 @@ export function Topbar({ user, pageTitle, activeTenantId, onMenuClick }: TopbarP
 
       <div className="flex-1" />
 
-      {isSaasAdmin && (
-        <TenantSwitcher activeTenantId={activeTenantId} />
+      {showTenantSwitcher && (
+        <TenantSwitcher activeTenantId={activeTenantId} role={user.role} />
       )}
 
       <div className="hidden md:flex items-center">

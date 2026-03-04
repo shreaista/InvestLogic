@@ -5,7 +5,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   getAuthzContext,
-  requireTenantAccess,
   requirePermission,
   canAccessProposal,
   jsonError,
@@ -14,6 +13,7 @@ import {
   PROPOSAL_READ,
   type Proposal,
 } from "@/lib/authz";
+import { requireActiveTenantId } from "@/lib/tenantContext";
 import { getProposalForUser } from "@/lib/mock/proposals";
 import {
   uploadProposalDocument,
@@ -67,12 +67,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
       );
     }
 
-    // Tenant isolation
-    const tenantId = ctx.tenantId ?? ctx.user.id;
-    if (!tenantId) {
-      throw new AuthzHttpError(400, "Tenant context required");
-    }
-    requireTenantAccess(ctx, tenantId);
+    // Require active tenant context
+    const tenantId = await requireActiveTenantId();
 
     // RBAC: Only tenant_admin and saas_admin can upload documents
     if (ctx.role !== "tenant_admin" && ctx.role !== "saas_admin") {
@@ -169,12 +165,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
       );
     }
 
-    // Tenant isolation
-    const tenantId = ctx.tenantId ?? ctx.user.id;
-    if (!tenantId) {
-      throw new AuthzHttpError(400, "Tenant context required");
-    }
-    requireTenantAccess(ctx, tenantId);
+    // Require active tenant context
+    const tenantId = await requireActiveTenantId();
 
     // Permission check: proposal:read for listing documents
     requirePermission(ctx, PROPOSAL_READ);

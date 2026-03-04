@@ -12,6 +12,7 @@ import {
   type PermissionKey,
   roleHasPermission as rbacRoleHasPermission,
 } from "@/lib/rbac/permissions";
+import { TenantContextError } from "@/lib/tenantContext";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HTTP Error Class for API Routes
@@ -66,6 +67,12 @@ export function requireTenant(user: SessionUser): string {
 
 export function jsonError(err: unknown): NextResponse {
   if (err instanceof AuthzHttpError) {
+    return NextResponse.json(
+      { ok: false, error: err.message },
+      { status: err.status }
+    );
+  }
+  if (err instanceof TenantContextError) {
     return NextResponse.json(
       { ok: false, error: err.message },
       { status: err.status }

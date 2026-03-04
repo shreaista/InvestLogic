@@ -5,12 +5,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   getAuthzContext,
-  requireTenantAccess,
   requirePermission,
   jsonError,
   AuthzHttpError,
   UPLOAD_CREATE,
 } from "@/lib/authz";
+import { requireActiveTenantId } from "@/lib/tenantContext";
 import { getProposalForUser } from "@/lib/mock/proposals";
 import {
   deleteProposalDocument,
@@ -33,12 +33,8 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       );
     }
 
-    // Tenant isolation
-    const tenantId = ctx.tenantId ?? ctx.user.id;
-    if (!tenantId) {
-      throw new AuthzHttpError(400, "Tenant context required");
-    }
-    requireTenantAccess(ctx, tenantId);
+    // Require active tenant context
+    const tenantId = await requireActiveTenantId();
 
     // RBAC: Only tenant_admin and saas_admin can delete documents
     if (ctx.role !== "tenant_admin" && ctx.role !== "saas_admin") {

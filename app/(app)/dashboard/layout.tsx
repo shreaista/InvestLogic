@@ -3,6 +3,7 @@ import { getMyAuthz } from "@/lib/authz";
 import { getNavItemsForRole, filterNavByPermissions } from "@/lib/nav";
 import { AppShell } from "@/components/app-shell";
 import { getSessionSafe } from "@/lib/session";
+import { getActiveTenantId, isTenantRequired } from "@/lib/tenantContext";
 
 export default async function DashboardLayout({
   children,
@@ -15,7 +16,13 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
-  const { role, permissions, activeTenantId } = authz.data;
+  const { role, permissions } = authz.data;
+  const activeTenantId = await getActiveTenantId();
+
+  // Redirect to tenant selection if tenant is required but not set
+  if (isTenantRequired(role) && !activeTenantId) {
+    redirect("/select-tenant");
+  }
 
   const { user } = await getSessionSafe();
 
