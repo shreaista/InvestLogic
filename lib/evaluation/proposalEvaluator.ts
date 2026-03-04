@@ -1,0 +1,376 @@
+import "server-only";
+
+// NEW: Proposal Evaluation Engine - LLM Implementation
+//
+// This module provides:
+// - Evaluation storage helpers (upload, list, download)
+// - LLM-based evaluation using OpenAI
+// - Fallback to stub evaluation if OpenAI is not configured
+//
+// Blob paths:
+// - Evaluations: tenants/{tenantId}/proposals/{proposalId}/evaluations/{timestamp}/evaluation.json
+
+import {
+  uploadBlob,
+  listBlobs,
+  downloadBlob,
+  getDefaultContainer,
+  generateTimestamp,
+  parseTimestampFromPath,
+} from "@/lib/storage/azureBlob";
+import { listProposalDocuments } from "@/lib/storage/proposalDocuments";
+import { listFundMandates, type FundMandateBlob } from "@/lib/storage/azure";
+import { runEvaluationLLM, isOpenAIConfigured } from "@/lib/llm/openaiClient";
+import {
+  extractContentForEvaluation,
+  type BlobInfo,
+} from "./textExtraction";
+import { type EvaluationReport } from "./types";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Re-export Types
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type { EvaluationReport } from "./types";
+
+export interface EvaluationMetadata {
+  blobPath: string;
+  evaluationId: string;
+  evaluatedAt: string;
+  fitScore: number;
+  timestamp: string;
+}
+
+export interface RunEvaluationParams {
+  tenantId: string;
+  proposalId: string;
+  fundName: string;
+  mandateKey: string | null;
+  evaluatedByUserId: string;
+  evaluatedByEmail: string;
+}
+
+export interface RunEvaluationResult {
+  report: EvaluationReport;
+  blobPath: string;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Path Utilities
+// ─────────────────────────────────────────────────────────────────────────────
+
+function buildEvaluationPath(tenantId: string, proposalId: string): string {
+  const timestamp = generateTimestamp();
+  return `tenants/${tenantId}/proposals/${proposalId}/evaluations/${timestamp}/evaluation.json`;
+}
+
+function getEvaluationsPrefix(tenantId: string, proposalId: string): string {
+  return `tenants/${tenantId}/proposals/${proposalId}/evaluations/`;
+}
+
+function extractTimestampFromPath(blobPath: string): string {
+  const match = blobPath.match(/evaluations\/(\d{8}T\d{6}Z)\//);
+  return match ? match[1] : "";
+}
+
+export function validateEvaluationBlobPath(
+  blobPath: string,
+  tenantId: string,
+  proposalId: string
+): boolean {
+  const expectedPrefix = `tenants/${tenantId}/proposals/${proposalId}/evaluations/`;
+  return blobPath.startsWith(expectedPrefix) && blobPath.endsWith("/evaluation.json");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Evaluation Storage Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function uploadEvaluationJson(
+  tenantId: string,
+  proposalId: string,
+  report: EvaluationReport
+): Promise<string> {
+  const container = getDefaultContainer();
+  const blobPath = buildEvaluationPath(tenantId, proposalId);
+
+  const jsonContent = JSON.stringify(report, null, 2);
+  const buffer = Buffer.from(jsonContent, "utf-8");
+
+  await uploadBlob({
+    container,
+    path: blobPath,
+    contentType: "application/json",
+    buffer,
+  });
+
+  return blobPath;
+}
+
+export async function listEvaluations(
+  tenantId: string,
+  proposalId: string
+): Promise<EvaluationMetadata[]> {
+  const container = getDefaultContainer();
+  const prefix = getEvaluationsPrefix(tenantId, proposalId);
+
+  const blobs = await listBlobs({ container, prefix });
+
+  const evaluations: EvaluationMetadata[] = [];
+
+  for (const blob of blobs) {
+    if (!blob.path.endsWith("/evaluation.json")) continue;
+
+    const timestamp = extractTimestampFromPath(blob.path);
+    const parsedDate = parseTimestampFromPath(blob.path);
+
+    evaluations.push({
+      blobPath: blob.path,
+      evaluationId: timestamp,
+      evaluatedAt: parsedDate?.toISOString() || blob.lastModified,
+      fitScore: 0,
+      timestamp,
+    });
+  }
+
+  evaluations.sort((a, b) => {
+    return new Date(b.evaluatedAt).getTime() - new Date(a.evaluatedAt).getTime();
+  });
+
+  return evaluations;
+}
+
+export async function downloadEvaluation(
+  tenantId: string,
+  proposalId: string,
+  blobPath: string
+): Promise<EvaluationReport | null> {
+  if (!validateEvaluationBlobPath(blobPath, tenantId, proposalId)) {
+    return null;
+  }
+
+  const container = getDefaultContainer();
+  const result = await downloadBlob(container, blobPath);
+
+  if (!result) {
+    return null;
+  }
+
+  try {
+    const jsonContent = result.buffer.toString("utf-8");
+    return JSON.parse(jsonContent) as EvaluationReport;
+  } catch {
+    return null;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Stub Evaluation (Fallback when OpenAI not configured)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// NEW: Generate stub evaluation when LLM is not available
+function generateStubEvaluation(
+  proposalDocCount: number,
+  mandateTemplateCount: number,
+  mandateKey: string | null
+): {
+  fitScore: number;
+  mandateSummary: string;
+  proposalSummary: string;
+  strengths: string[];
+  risks: string[];
+  recommendations: string[];
+  confidence: "low" | "medium" | "high";
+} {
+  let fitScore = 70;
+  if (proposalDocCount >= 2) fitScore += 10;
+  if (mandateTemplateCount >= 1) fitScore += 5;
+  fitScore = Math.min(fitScore, 95);
+
+  return {
+    fitScore,
+    mandateSummary: mandateKey
+      ? `Fund mandate "${mandateKey}" defines investment criteria. ${mandateTemplateCount} template(s) available.`
+      : "No fund mandate template associated with this proposal's fund.",
+    proposalSummary: `Proposal contains ${proposalDocCount} document(s) reviewed against mandate criteria.`,
+    strengths: [
+      "Proposal documentation is complete and well-organized",
+      proposalDocCount >= 2 ? "Multiple supporting documents provided" : "Core proposal document submitted",
+      mandateTemplateCount >= 1 ? "Clear mandate template available" : "Evaluation performed without mandate constraints",
+    ],
+    risks: [
+      proposalDocCount < 2 ? "Limited documentation may require additional information" : "Standard documentation risk profile",
+      mandateTemplateCount === 0 ? "No formal mandate template to validate against" : "Mandate compliance should be verified in detail",
+    ],
+    recommendations: [
+      "Proceed with detailed due diligence review",
+      proposalDocCount < 2 ? "Request additional supporting documentation" : "Documentation is sufficient for initial review",
+      "Schedule follow-up meeting with applicant if needed",
+    ],
+    confidence: "low",
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Main Evaluation Function
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function runEvaluation(
+  params: RunEvaluationParams
+): Promise<RunEvaluationResult> {
+  const { tenantId, proposalId, fundName, mandateKey, evaluatedByUserId, evaluatedByEmail } = params;
+
+  // NEW: Gather document metadata
+  const proposalDocsResult = await listProposalDocuments(tenantId, proposalId);
+  const proposalDocs = proposalDocsResult.flat.filter(
+    (doc) => !doc.blobPath.includes("/evaluations/")
+  );
+
+  let mandateTemplates: FundMandateBlob[] = [];
+  if (mandateKey) {
+    try {
+      mandateTemplates = await listFundMandates({ tenantId, mandateKey });
+    } catch (error) {
+      console.error("[proposalEvaluator] Error listing mandate templates:", error);
+    }
+  }
+
+  const timestamp = generateTimestamp();
+  let report: EvaluationReport;
+
+  // NEW: Check if OpenAI is configured
+  if (isOpenAIConfigured()) {
+    // NEW: Extract text content from documents
+    const mandateBlobs: BlobInfo[] = mandateTemplates.map((t) => ({
+      blobPath: t.blobName,
+      contentType: t.contentType,
+      filename: t.name,
+    }));
+
+    const proposalBlobs: BlobInfo[] = proposalDocs.map((d) => ({
+      blobPath: d.blobPath,
+      contentType: d.contentType,
+      filename: d.filename,
+    }));
+
+    const extractedContent = await extractContentForEvaluation(mandateBlobs, proposalBlobs);
+
+    // NEW: Run LLM evaluation
+    const llmResult = await runEvaluationLLM({
+      mandateText: extractedContent.mandateText,
+      proposalText: extractedContent.proposalText,
+      context: {
+        proposalId,
+        fundName,
+        mandateKey,
+      },
+    });
+
+    if (llmResult.success && llmResult.response) {
+      // NEW: Build report from LLM response
+      report = {
+        evaluationId: timestamp,
+        proposalId,
+        tenantId,
+        evaluatedAt: new Date().toISOString(),
+        evaluatedByUserId,
+        evaluatedByEmail,
+
+        inputs: {
+          proposalDocuments: proposalDocs.length,
+          mandateTemplates: mandateTemplates.length,
+          mandateKey,
+          totalCharactersProcessed: extractedContent.totalCharacters,
+          extractionWarnings: extractedContent.extractionWarnings,
+        },
+
+        fitScore: llmResult.response.fitScore,
+        mandateSummary: llmResult.response.mandateSummary,
+        proposalSummary: llmResult.response.proposalSummary,
+        strengths: llmResult.response.strengths,
+        risks: llmResult.response.risks,
+        recommendations: llmResult.response.recommendations,
+        confidence: llmResult.response.confidence,
+
+        model: llmResult.model,
+        version: "2.0.0",
+        engineType: "llm",
+      };
+    } else {
+      // NEW: LLM failed, fall back to stub with error info
+      console.error("[proposalEvaluator] LLM evaluation failed:", llmResult.error);
+      
+      const stubResult = generateStubEvaluation(
+        proposalDocs.length,
+        mandateTemplates.length,
+        mandateKey
+      );
+
+      report = {
+        evaluationId: timestamp,
+        proposalId,
+        tenantId,
+        evaluatedAt: new Date().toISOString(),
+        evaluatedByUserId,
+        evaluatedByEmail,
+
+        inputs: {
+          proposalDocuments: proposalDocs.length,
+          mandateTemplates: mandateTemplates.length,
+          mandateKey,
+          totalCharactersProcessed: extractedContent.totalCharacters,
+          extractionWarnings: [
+            ...extractedContent.extractionWarnings,
+            `LLM evaluation failed: ${llmResult.error}`,
+          ],
+        },
+
+        ...stubResult,
+
+        model: "stub-fallback",
+        version: "2.0.0",
+        engineType: "stub",
+      };
+    }
+  } else {
+    // NEW: OpenAI not configured, use stub
+    console.warn("[proposalEvaluator] OpenAI not configured, using stub evaluation");
+
+    const stubResult = generateStubEvaluation(
+      proposalDocs.length,
+      mandateTemplates.length,
+      mandateKey
+    );
+
+    report = {
+      evaluationId: timestamp,
+      proposalId,
+      tenantId,
+      evaluatedAt: new Date().toISOString(),
+      evaluatedByUserId,
+      evaluatedByEmail,
+
+      inputs: {
+        proposalDocuments: proposalDocs.length,
+        mandateTemplates: mandateTemplates.length,
+        mandateKey,
+        totalCharactersProcessed: 0,
+        extractionWarnings: ["OpenAI API key not configured - using stub evaluation"],
+      },
+
+      ...stubResult,
+
+      model: "stub",
+      version: "2.0.0",
+      engineType: "stub",
+    };
+  }
+
+  // NEW: Save evaluation to blob storage
+  const blobPath = await uploadEvaluationJson(tenantId, proposalId, report);
+
+  return {
+    report,
+    blobPath,
+  };
+}

@@ -1,0 +1,147 @@
+// NEW: API route to get Fund Mandate for a Proposal
+// GET /api/proposals/[proposalId]/mandate
+
+import { NextRequest, NextResponse } from "next/server";
+import {
+  requireSession,
+  requireTenant,
+  requireRBACPermission,
+  jsonError,
+  AuthzHttpError,
+  RBAC_PERMISSIONS,
+} from "@/lib/authz";
+import { getProposalForUser } from "@/lib/mock/proposals";
+import { getFundForProposal } from "@/lib/mock/funds";
+import { getFundMandateById } from "@/lib/mock/fundMandates";
+import { listFundMandates } from "@/lib/storage/azure";
+
+interface RouteContext {
+  params: Promise<{ proposalId: string }>;
+}
+
+// NEW: Format ticket amount as currency
+function formatTicketAmount(amount: number): string {
+  if (amount >= 1000000) {
+    return `$${(amount / 1000000).toFixed(1)}M`;
+  }
+  if (amount >= 1000) {
+    return `$${(amount / 1000).toFixed(0)}K`;
+  }
+  return `$${amount}`;
+}
+
+export async function GET(request: NextRequest, context: RouteContext) {
+  try {
+    const session = await requireSession();
+    requireRBACPermission(session, RBAC_PERMISSIONS.PROPOSAL_DOCUMENT_READ);
+    const tenantId = requireTenant(session);
+    const { proposalId } = await context.params;
+
+    // NEW: Validate proposal access (same rules as proposal documents)
+    const proposalResult = getProposalForUser({
+      tenantId,
+      userId: session.userId || "",
+      role: session.role,
+      proposalId,
+    });
+
+    if (proposalResult.accessDenied) {
+      throw new AuthzHttpError(403, "You do not have access to this proposal");
+    }
+
+    if (!proposalResult.proposal) {
+      throw new AuthzHttpError(404, "Proposal not found");
+    }
+
+    const proposal = proposalResult.proposal;
+
+    // NEW: Get fund for this proposal (by fund name)
+    const fund = getFundForProposal(tenantId, proposal.fund);
+
+    if (!fund) {
+      return NextResponse.json({
+        ok: true,
+        data: {
+          mandate: null,
+          message: "No fund associated with this proposal",
+        },
+      });
+    }
+
+    if (!fund.mandateTemplateId) {
+      return NextResponse.json({
+        ok: true,
+        data: {
+          mandate: null,
+          message: "No mandate template assigned to this fund",
+        },
+      });
+    }
+
+    // NEW: Get mandate template details
+    const mandate = getFundMandateById(tenantId, fund.mandateTemplateId);
+
+    if (!mandate) {
+      return NextResponse.json({
+        ok: true,
+        data: {
+          mandate: null,
+          message: "Mandate template not found",
+        },
+      });
+    }
+
+    // NEW: Get template files from Azure blob storage
+    let templateFiles: Array<{
+      name: string;
+      blobPath: string;
+      uploadedAt: string;
+      size: number;
+    }> = [];
+
+    if (fund.mandateKey) {
+      try {
+        const blobs = await listFundMandates({
+          tenantId,
+          mandateKey: fund.mandateKey,
+        });
+
+        templateFiles = blobs.map((blob) => ({
+          name: blob.name,
+          blobPath: blob.blobName,
+          uploadedAt: blob.uploadedAt,
+          size: blob.size,
+        }));
+      } catch (error) {
+        console.error("[proposal/mandate] Error listing mandate files:", error);
+      }
+    }
+
+    // NEW: Return mandate data
+    return NextResponse.json({
+      ok: true,
+      data: {
+        mandate: {
+          mandateId: mandate.id,
+          mandateName: mandate.name,
+          strategy: mandate.strategy,
+          geography: mandate.geography,
+          ticketRange: `${formatTicketAmount(mandate.minTicket)} - ${formatTicketAmount(mandate.maxTicket)}`,
+          minTicket: mandate.minTicket,
+          maxTicket: mandate.maxTicket,
+          version: mandate.version,
+          status: mandate.status,
+          notes: mandate.notes,
+          templateFiles,
+        },
+        fund: {
+          fundId: fund.id,
+          fundName: fund.name,
+          mandateKey: fund.mandateKey,
+        },
+      },
+    });
+  } catch (error) {
+    return jsonError(error);
+  }
+}

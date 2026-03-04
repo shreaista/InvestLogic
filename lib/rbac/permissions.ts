@@ -24,6 +24,11 @@ export const PERMISSIONS = {
   FUND_MANDATE_UPLOAD: "fund:mandate:upload",
   FUND_MANDATE_READ: "fund:mandate:read",
 
+  // NEW: Proposal document management
+  PROPOSAL_DOCUMENT_UPLOAD: "proposal:document:upload",
+  PROPOSAL_DOCUMENT_READ: "proposal:document:read",
+  PROPOSAL_DOCUMENT_DELETE: "proposal:document:delete",
+
   // Costs
   COSTS_READ: "costs:read",
 
@@ -64,6 +69,10 @@ export const ROLE_PERMISSION_MAP: Record<RoleKey, readonly PermissionKey[]> = {
     PERMISSIONS.PROPOSAL_ASSIGN,
     PERMISSIONS.FUND_MANDATE_UPLOAD,
     PERMISSIONS.FUND_MANDATE_READ,
+    // NEW: Proposal document permissions
+    PERMISSIONS.PROPOSAL_DOCUMENT_UPLOAD,
+    PERMISSIONS.PROPOSAL_DOCUMENT_READ,
+    PERMISSIONS.PROPOSAL_DOCUMENT_DELETE,
     PERMISSIONS.COSTS_READ,
     PERMISSIONS.REPORT_GENERATE,
     PERMISSIONS.UPLOAD_CREATE,
@@ -79,6 +88,10 @@ export const ROLE_PERMISSION_MAP: Record<RoleKey, readonly PermissionKey[]> = {
     PERMISSIONS.PROPOSAL_ASSIGN,
     PERMISSIONS.FUND_MANDATE_UPLOAD,
     PERMISSIONS.FUND_MANDATE_READ,
+    // NEW: Proposal document permissions
+    PERMISSIONS.PROPOSAL_DOCUMENT_UPLOAD,
+    PERMISSIONS.PROPOSAL_DOCUMENT_READ,
+    PERMISSIONS.PROPOSAL_DOCUMENT_DELETE,
     PERMISSIONS.COSTS_READ,
     PERMISSIONS.REPORT_GENERATE,
     PERMISSIONS.UPLOAD_CREATE,
@@ -90,6 +103,9 @@ export const ROLE_PERMISSION_MAP: Record<RoleKey, readonly PermissionKey[]> = {
     PERMISSIONS.UPLOAD_CREATE,
     PERMISSIONS.REPORT_GENERATE,
     PERMISSIONS.LLM_USE,
+    // NEW: Proposal document permissions (read + upload for assessors assigned to proposal)
+    PERMISSIONS.PROPOSAL_DOCUMENT_UPLOAD,
+    PERMISSIONS.PROPOSAL_DOCUMENT_READ,
   ],
 };
 
