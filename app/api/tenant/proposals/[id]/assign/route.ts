@@ -119,8 +119,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
     return NextResponse.json({
       ok: true,
       data: {
+        proposalId,
         assignedToUserId: result.assignedToUserId,
-        assignedQueueId: result.assignedQueueId,
+        assignedToQueueId: result.assignedQueueId,
       },
     });
   } catch (error) {

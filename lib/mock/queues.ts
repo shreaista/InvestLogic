@@ -25,12 +25,17 @@ export interface ProposalQueue {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const queues: Queue[] = [
-  { id: "queue-default", tenantId: "tenant-001", name: "Default" },
+  { id: "queue-default", tenantId: "tenant-001", name: "Default Queue" },
   { id: "queue-high-priority", tenantId: "tenant-001", name: "High Priority" },
+  { id: "queue-healthcare", tenantId: "tenant-001", name: "Healthcare" },
 ];
 
 const queueMembers: QueueMember[] = [
   { queueId: "queue-default", userId: "user-003" },
+  { queueId: "queue-default", userId: "user-assessor-2" },
+  { queueId: "queue-high-priority", userId: "user-003" },
+  { queueId: "queue-healthcare", userId: "user-assessor-2" },
+  { queueId: "queue-healthcare", userId: "user-assessor-3" },
 ];
 
 const proposalQueues: ProposalQueue[] = [];

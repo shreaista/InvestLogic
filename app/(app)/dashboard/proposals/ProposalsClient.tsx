@@ -57,9 +57,10 @@ import {
   LucideIcon,
   AlertCircle,
   User,
+  Users,
   Loader2,
 } from "lucide-react";
-import type { Proposal, ProposalStatus } from "@/lib/mock/proposals";
+import type { ProposalWithAssignment, ProposalStatus } from "@/lib/mock/proposals";
 
 type FilterKey = "all" | "new" | "assigned" | "in-review" | "approved" | "declined";
 
@@ -91,26 +92,42 @@ interface Assessor {
   id: string;
   name: string;
   email: string;
-  role: string;
 }
 
+interface Queue {
+  id: string;
+  name: string;
+  description?: string;
+}
+
+type AssignMode = "user" | "queue";
+
 interface ProposalsClientProps {
-  proposals: Proposal[];
+  proposals: ProposalWithAssignment[];
   error?: string;
   role?: string;
   proposalCount?: number;
 }
 
+interface AssignProposalParams {
+  proposalId: string;
+  mode: AssignMode;
+  userId?: string;
+  queueId?: string;
+}
+
 async function assignProposal(
-  proposalId: string,
-  assessorUserId: string
-): Promise<{ ok: boolean; error?: string }> {
+  params: AssignProposalParams
+): Promise<{ ok: boolean; error?: string; data?: { proposalId: string; assignedToUserId?: string; assignedToQueueId?: string } }> {
+  const { proposalId, mode, userId, queueId } = params;
   try {
     const res = await fetch(`/api/tenant/proposals/${proposalId}/assign`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ assignedUserId: assessorUserId }),
+      body: JSON.stringify(
+        mode === "user" ? { assignedUserId: userId } : { queueId }
+      ),
     });
     const data = await res.json();
     return data;
@@ -121,17 +138,29 @@ async function assignProposal(
 
 async function fetchAssessors(): Promise<{ ok: boolean; data?: Assessor[]; error?: string }> {
   try {
-    const res = await fetch("/api/tenant/users", {
+    const res = await fetch("/api/tenant/assessors", {
       credentials: "include",
     });
     const data = await res.json();
-    if (data.ok && data.data?.users) {
-      const assessors = data.data.users.filter(
-        (u: Assessor) => u.role === "assessor"
-      );
-      return { ok: true, data: assessors };
+    if (data.ok && data.data?.assessors) {
+      return { ok: true, data: data.data.assessors };
     }
     return { ok: false, error: data.error || "Failed to load assessors" };
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
+}
+
+async function fetchQueues(): Promise<{ ok: boolean; data?: Queue[]; error?: string }> {
+  try {
+    const res = await fetch("/api/tenant/queues", {
+      credentials: "include",
+    });
+    const data = await res.json();
+    if (data.ok && data.data?.queues) {
+      return { ok: true, data: data.data.queues };
+    }
+    return { ok: false, error: data.error || "Failed to load queues" };
   } catch {
     return { ok: false, error: "Network error" };
   }
@@ -146,48 +175,75 @@ export default function ProposalsClient({ proposals, error, role, proposalCount 
   
   // Assign modal state
   const [assignModalOpen, setAssignModalOpen] = useState(false);
-  const [assigningProposal, setAssigningProposal] = useState<Proposal | null>(null);
+  const [assigningProposal, setAssigningProposal] = useState<ProposalWithAssignment | null>(null);
+  const [assignMode, setAssignMode] = useState<AssignMode>("user");
   const [assessors, setAssessors] = useState<Assessor[]>([]);
+  const [queues, setQueues] = useState<Queue[]>([]);
   const [selectedAssessorId, setSelectedAssessorId] = useState<string>("");
-  const [loadingAssessors, setLoadingAssessors] = useState(false);
+  const [selectedQueueId, setSelectedQueueId] = useState<string>("");
+  const [loadingData, setLoadingData] = useState(false);
   const [submittingAssignment, setSubmittingAssignment] = useState(false);
   const [assignError, setAssignError] = useState<string | null>(null);
 
   const canAssign = role === "tenant_admin" || role === "saas_admin";
 
-  const loadAssessors = useCallback(async () => {
-    setLoadingAssessors(true);
+  const loadAssignmentData = useCallback(async () => {
+    setLoadingData(true);
     setAssignError(null);
-    const result = await fetchAssessors();
-    if (result.ok && result.data) {
-      setAssessors(result.data);
-    } else {
-      setAssignError(result.error || "Failed to load assessors");
+    
+    const [assessorResult, queueResult] = await Promise.all([
+      fetchAssessors(),
+      fetchQueues(),
+    ]);
+    
+    if (assessorResult.ok && assessorResult.data) {
+      setAssessors(assessorResult.data);
     }
-    setLoadingAssessors(false);
+    if (queueResult.ok && queueResult.data) {
+      setQueues(queueResult.data);
+    }
+    
+    if (!assessorResult.ok && !queueResult.ok) {
+      setAssignError("Failed to load assignment options");
+    }
+    
+    setLoadingData(false);
   }, []);
 
-  const openAssignModal = useCallback(async (proposal: Proposal) => {
+  const openAssignModal = useCallback(async (proposal: ProposalWithAssignment) => {
     setAssigningProposal(proposal);
     setSelectedAssessorId("");
+    setSelectedQueueId("");
+    setAssignMode("user");
     setAssignError(null);
     setAssignModalOpen(true);
-    if (assessors.length === 0) {
-      await loadAssessors();
-    }
-  }, [assessors.length, loadAssessors]);
+    await loadAssignmentData();
+  }, [loadAssignmentData]);
 
   const handleAssignSubmit = async () => {
-    if (!assigningProposal || !selectedAssessorId) return;
+    if (!assigningProposal) return;
+    
+    const selectedId = assignMode === "user" ? selectedAssessorId : selectedQueueId;
+    if (!selectedId) return;
     
     setSubmittingAssignment(true);
     setAssignError(null);
     
-    const result = await assignProposal(assigningProposal.id, selectedAssessorId);
+    const result = await assignProposal({
+      proposalId: assigningProposal.id,
+      mode: assignMode,
+      userId: assignMode === "user" ? selectedAssessorId : undefined,
+      queueId: assignMode === "queue" ? selectedQueueId : undefined,
+    });
     
     if (result.ok) {
-      const assessor = assessors.find(a => a.id === selectedAssessorId);
-      toast(`Assigned to ${assessor?.name || "assessor"}`);
+      if (assignMode === "user") {
+        const assessor = assessors.find(a => a.id === selectedAssessorId);
+        toast(`Assigned to ${assessor?.name || "assessor"}`);
+      } else {
+        const queue = queues.find(q => q.id === selectedQueueId);
+        toast(`Assigned to queue: ${queue?.name || "queue"}`);
+      }
       setAssignModalOpen(false);
       setAssigningProposal(null);
       startTransition(() => {
@@ -395,12 +451,19 @@ export default function ProposalsClient({ proposals, error, role, proposalCount 
                       </StatusBadge>
                     </TableCell>
                     <TableCell className="hidden lg:table-cell">
-                      {proposal.assignedToName ? (
+                      {proposal.assignmentType === "direct" && proposal.assignedToName ? (
                         <div className="flex items-center gap-2">
                           <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium text-primary">
                             {proposal.assignedToName.split(" ").map(n => n[0]).join("")}
                           </div>
                           <span className="text-sm">{proposal.assignedToName}</span>
+                        </div>
+                      ) : proposal.assignmentType === "queue" && proposal.assignedQueueName ? (
+                        <div className="flex items-center gap-2">
+                          <div className="h-6 w-6 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                            <Users className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                          </div>
+                          <span className="text-sm">{proposal.assignedQueueName}</span>
                         </div>
                       ) : (
                         <span className="text-muted-foreground">—</span>
@@ -436,7 +499,7 @@ export default function ProposalsClient({ proposals, error, role, proposalCount 
                             <FileText className="h-4 w-4 mr-2" />
                             View Documents
                           </DropdownMenuItem>
-                          {canAssign && (proposal.status === "New" || !proposal.assignedToUserId) && (
+                          {canAssign && (proposal.status === "New" || proposal.assignmentType === "none") && (
                             <>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
@@ -487,51 +550,102 @@ export default function ProposalsClient({ proposals, error, role, proposalCount 
             <DialogDescription>
               {assigningProposal && (
                 <>
-                  Assign <span className="font-medium">{assigningProposal.name}</span> to an assessor.
+                  Assign <span className="font-medium">{assigningProposal.name}</span> to an assessor or queue.
                 </>
               )}
             </DialogDescription>
           </DialogHeader>
 
           <div className="py-4">
-            {loadingAssessors ? (
+            {loadingData ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                <span className="ml-2 text-muted-foreground">Loading assessors...</span>
-              </div>
-            ) : assessors.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <User className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                <p>No assessors available</p>
-                <p className="text-sm mt-1">Add assessors to your tenant first.</p>
+                <span className="ml-2 text-muted-foreground">Loading options...</span>
               </div>
             ) : (
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <label htmlFor="assessor-select" className="text-sm font-medium">
-                    Select Assessor
-                  </label>
-                  <Select value={selectedAssessorId} onValueChange={setSelectedAssessorId}>
-                    <SelectTrigger id="assessor-select">
-                      <SelectValue placeholder="Choose an assessor..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {assessors.map((assessor) => (
-                        <SelectItem key={assessor.id} value={assessor.id}>
-                          <div className="flex items-center gap-2">
-                            <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium text-primary">
-                              {assessor.name.split(" ").map(n => n[0]).join("")}
-                            </div>
-                            <div>
-                              <span className="font-medium">{assessor.name}</span>
-                              <span className="text-muted-foreground ml-2 text-xs">{assessor.email}</span>
-                            </div>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <label className="text-sm font-medium">Assignment Type</label>
+                  <Tabs value={assignMode} onValueChange={(v) => setAssignMode(v as AssignMode)}>
+                    <TabsList className="w-full">
+                      <TabsTrigger value="user" className="flex-1">
+                        <User className="h-4 w-4 mr-2" />
+                        Assessor
+                      </TabsTrigger>
+                      <TabsTrigger value="queue" className="flex-1">
+                        <UserPlus className="h-4 w-4 mr-2" />
+                        Queue
+                      </TabsTrigger>
+                    </TabsList>
+                  </Tabs>
                 </div>
+
+                {assignMode === "user" && (
+                  <div className="space-y-2">
+                    <label htmlFor="assessor-select" className="text-sm font-medium">
+                      Select Assessor
+                    </label>
+                    {assessors.length === 0 ? (
+                      <div className="text-center py-4 text-muted-foreground border rounded-md">
+                        <User className="h-6 w-6 mx-auto mb-2 opacity-50" />
+                        <p className="text-sm">No assessors available</p>
+                      </div>
+                    ) : (
+                      <Select value={selectedAssessorId} onValueChange={setSelectedAssessorId}>
+                        <SelectTrigger id="assessor-select">
+                          <SelectValue placeholder="Choose an assessor..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {assessors.map((assessor) => (
+                            <SelectItem key={assessor.id} value={assessor.id}>
+                              <div className="flex items-center gap-2">
+                                <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium text-primary">
+                                  {assessor.name.split(" ").map(n => n[0]).join("")}
+                                </div>
+                                <div>
+                                  <span className="font-medium">{assessor.name}</span>
+                                  <span className="text-muted-foreground ml-2 text-xs">{assessor.email}</span>
+                                </div>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+                )}
+
+                {assignMode === "queue" && (
+                  <div className="space-y-2">
+                    <label htmlFor="queue-select" className="text-sm font-medium">
+                      Select Queue
+                    </label>
+                    {queues.length === 0 ? (
+                      <div className="text-center py-4 text-muted-foreground border rounded-md">
+                        <UserPlus className="h-6 w-6 mx-auto mb-2 opacity-50" />
+                        <p className="text-sm">No queues available</p>
+                      </div>
+                    ) : (
+                      <Select value={selectedQueueId} onValueChange={setSelectedQueueId}>
+                        <SelectTrigger id="queue-select">
+                          <SelectValue placeholder="Choose a queue..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {queues.map((queue) => (
+                            <SelectItem key={queue.id} value={queue.id}>
+                              <div className="flex flex-col">
+                                <span className="font-medium">{queue.name}</span>
+                                {queue.description && (
+                                  <span className="text-muted-foreground text-xs">{queue.description}</span>
+                                )}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+                )}
 
                 {assignError && (
                   <Alert variant="destructive">
@@ -553,7 +667,11 @@ export default function ProposalsClient({ proposals, error, role, proposalCount 
             </Button>
             <Button
               onClick={handleAssignSubmit}
-              disabled={!selectedAssessorId || submittingAssignment || loadingAssessors}
+              disabled={
+                (assignMode === "user" ? !selectedAssessorId : !selectedQueueId) ||
+                submittingAssignment ||
+                loadingData
+              }
             >
               {submittingAssignment ? (
                 <>

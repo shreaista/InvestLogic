@@ -217,6 +217,35 @@ export function listProposalsForUser(params: ListProposalsParams): Proposal[] {
   return [];
 }
 
+export function listProposalsWithAssignmentForUser(params: ListProposalsParams): ProposalWithAssignment[] {
+  const { tenantId, role } = params;
+
+  const tenantProposals = proposals.filter((p) => p.tenantId === tenantId);
+
+  if (role !== "saas_admin" && role !== "tenant_admin") {
+    return [];
+  }
+
+  return tenantProposals.map((proposal) => {
+    const queueId = getProposalQueueId(proposal.id);
+    const queue = queueId ? getQueueById(queueId) : null;
+
+    let assignmentType: AssignmentType = "none";
+    if (proposal.assignedToUserId) {
+      assignmentType = "direct";
+    } else if (queueId) {
+      assignmentType = "queue";
+    }
+
+    return {
+      ...proposal,
+      assignmentType,
+      assignedQueueId: queueId,
+      assignedQueueName: queue?.name ?? null,
+    };
+  });
+}
+
 export interface GetProposalParams {
   tenantId: string;
   userId: string;
