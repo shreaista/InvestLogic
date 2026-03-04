@@ -9,7 +9,7 @@ export default async function DevtoolsPage() {
     redirect("/login");
   }
 
-  if (ctx.role !== ROLES.SAAS_ADMIN && ctx.role !== ROLES.TENANT_ADMIN) {
+  if (ctx.role !== ROLES.SAAS_ADMIN) {
     redirect("/dashboard");
   }
 
