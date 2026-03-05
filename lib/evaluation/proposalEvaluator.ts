@@ -331,7 +331,9 @@ export async function runEvaluation(
           totalCharactersProcessed: extractedContent.totalCharacters,
           extractionWarnings: [
             ...extractedContent.extractionWarnings,
-            `LLM evaluation failed (${llmResult.provider}): ${llmResult.error}`,
+            llmResult.provider === "azure-openai"
+              ? `Azure OpenAI call failed: ${llmResult.error}`
+              : `OpenAI call failed: ${llmResult.error}`,
           ],
         },
 

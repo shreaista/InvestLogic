@@ -39,7 +39,7 @@ function getAzureOpenAIConfig(): AzureOpenAIConfig {
     endpoint: endpoint.replace(/\/$/, ""), // Remove trailing slash if present
     apiKey,
     deploymentName,
-    apiVersion: process.env.AZURE_OPENAI_API_VERSION || "2024-08-01-preview",
+    apiVersion: process.env.AZURE_OPENAI_API_VERSION || "2024-02-15-preview",
   };
 }
 
