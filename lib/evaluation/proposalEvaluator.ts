@@ -109,15 +109,19 @@ export async function uploadEvaluationJson(
   // Use the evaluationId from the report to ensure folder name matches report ID
   const blobPath = buildEvaluationPath(tenantId, proposalId, report.evaluationId);
 
+  console.log(`[proposalEvaluator] Saving evaluation to: ${blobPath}`);
+
   const jsonContent = JSON.stringify(report, null, 2);
   const buffer = Buffer.from(jsonContent, "utf-8");
 
-  await uploadBlob({
+  const result = await uploadBlob({
     container,
     path: blobPath,
     contentType: "application/json",
     buffer,
   });
+
+  console.log(`[proposalEvaluator] Evaluation saved: ${blobPath} (${result.sizeBytes} bytes)`);
 
   return blobPath;
 }

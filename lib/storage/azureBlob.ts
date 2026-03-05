@@ -198,6 +198,7 @@ export async function uploadBlob(params: UploadBlobParams): Promise<UploadBlobRe
   const uploadedAt = new Date().toISOString();
 
   if (isAzureConfigured()) {
+    console.log(`[azureBlob] Uploading to Azure: ${container}/${path}`);
     try {
       const containerClient = await getContainerClient(container);
       if (containerClient) {
@@ -208,19 +209,25 @@ export async function uploadBlob(params: UploadBlobParams): Promise<UploadBlobRe
           metadata: metadata || undefined,
         });
 
+        console.log(`[azureBlob] Upload successful: ${path} (${buffer.length} bytes)`);
         return {
           path,
           sizeBytes: buffer.length,
           uploadedAt,
         };
+      } else {
+        console.error("[azureBlob] Container client is null, falling back to in-memory");
       }
     } catch (error) {
       console.error("[azureBlob] Upload failed, falling back to in-memory:", error);
     }
+  } else {
+    console.log(`[azureBlob] Azure not configured, using in-memory storage for: ${path}`);
   }
 
   const key = `${container}/${path}`;
   inMemoryStore.set(key, { buffer, contentType, uploadedAt });
+  console.log(`[azureBlob] Stored in memory: ${key}`);
 
   return {
     path,
@@ -233,6 +240,7 @@ export async function listBlobs(params: ListBlobsParams): Promise<BlobMetadata[]
   const { container, prefix } = params;
 
   if (isAzureConfigured()) {
+    console.log(`[azureBlob] Listing blobs from Azure: ${container}/${prefix}`);
     try {
       const containerClient = await getContainerClient(container);
       if (containerClient) {
@@ -250,6 +258,7 @@ export async function listBlobs(params: ListBlobsParams): Promise<BlobMetadata[]
           });
         }
 
+        console.log(`[azureBlob] Found ${blobs.length} blobs in Azure with prefix: ${prefix}`);
         return sortBlobsByTimestampDesc(blobs);
       }
     } catch (error) {
@@ -257,6 +266,7 @@ export async function listBlobs(params: ListBlobsParams): Promise<BlobMetadata[]
     }
   }
 
+  console.log(`[azureBlob] Listing blobs from in-memory: ${prefix}`);
   const blobs: BlobMetadata[] = [];
   const keyPrefix = `${container}/${prefix}`;
 
@@ -273,6 +283,7 @@ export async function listBlobs(params: ListBlobsParams): Promise<BlobMetadata[]
     }
   }
 
+  console.log(`[azureBlob] Found ${blobs.length} blobs in memory with prefix: ${prefix}`);
   return sortBlobsByTimestampDesc(blobs);
 }
 
