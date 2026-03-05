@@ -100,9 +100,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
       user.userId || ""
     );
 
-    // Audit log
+    // Audit log for assessor assignment
     logAudit({
-      action: "proposal.assign",
+      action: "proposal.assign_to_assessor",
       actorUserId: user.userId || "",
       actorEmail: user.email,
       tenantId,
@@ -110,9 +110,24 @@ export async function POST(request: NextRequest, context: RouteContext) {
       resourceId: proposalId,
       details: {
         assessorId: result.assignedToUserId,
-        queueId: result.assignedQueueId,
         assessorName: assigneeName,
+        queueId: result.assignedQueueId,
+        dueDate: result.dueDate,
+      },
+    });
+
+    // Audit log for queue assignment
+    logAudit({
+      action: "proposal.assign_to_queue",
+      actorUserId: user.userId || "",
+      actorEmail: user.email,
+      tenantId,
+      resourceType: "proposal",
+      resourceId: proposalId,
+      details: {
+        queueId: result.assignedQueueId,
         queueName: queue.name,
+        assessorId: result.assignedToUserId,
         dueDate: result.dueDate,
       },
     });

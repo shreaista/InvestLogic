@@ -19,6 +19,7 @@ export const PERMISSIONS = {
   PROPOSAL_READ: "proposal:read",
   PROPOSAL_CREATE: "proposal:create",
   PROPOSAL_ASSIGN: "proposal:assign",
+  PROPOSAL_VIEW_ASSIGNED: "proposal:view_assigned",
 
   // Queue management
   QUEUE_MANAGE: "queue:manage",
@@ -105,10 +106,11 @@ export const ROLE_PERMISSION_MAP: Record<RoleKey, readonly PermissionKey[]> = {
 
   assessor: [
     PERMISSIONS.PROPOSAL_READ,
+    PERMISSIONS.PROPOSAL_VIEW_ASSIGNED,
     PERMISSIONS.UPLOAD_CREATE,
     PERMISSIONS.REPORT_GENERATE,
     PERMISSIONS.LLM_USE,
-    // NEW: Proposal document permissions (read + upload for assessors assigned to proposal)
+    // Proposal document permissions (read + upload for assessors assigned to proposal)
     PERMISSIONS.PROPOSAL_DOCUMENT_UPLOAD,
     PERMISSIONS.PROPOSAL_DOCUMENT_READ,
   ],

@@ -5,8 +5,15 @@ import { useRouter } from "next/navigation";
 import { PageHeader, StatCard, DataCard, StatusBadge, EmptyState } from "@/components/app";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   Select,
   SelectContent,
@@ -20,13 +27,12 @@ import {
   Target,
   CheckCircle,
   AlertTriangle,
-  Play,
   Users,
   User,
+  Play,
 } from "lucide-react";
-import type { ProposalWithAssignment } from "@/lib/mock/proposals";
+import type { ProposalWithAssignment, ProposalStatus } from "@/lib/mock/proposals";
 
-type PriorityKey = "High" | "Medium" | "Low";
 type FilterKey = "all" | "high" | "direct" | "queue";
 
 interface QueueClientProps {
@@ -40,6 +46,14 @@ function formatAmount(amount: number): string {
     minimumFractionDigits: 0,
   }).format(amount);
 }
+
+const statusVariants: Record<ProposalStatus, "muted" | "info" | "warning" | "success" | "error"> = {
+  New: "muted",
+  Assigned: "info",
+  "In Review": "warning",
+  Approved: "success",
+  Declined: "error",
+};
 
 export default function QueueClient({ proposals }: QueueClientProps) {
   const router = useRouter();
@@ -110,31 +124,7 @@ export default function QueueClient({ proposals }: QueueClientProps) {
 
       <DataCard title="Assessment Queue" noPadding>
         <div className="p-4 border-b">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search proposals..."
-                className="pl-9"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
-            {uniqueQueues.length > 0 && (
-              <Select value={queueFilter} onValueChange={setQueueFilter}>
-                <SelectTrigger className="w-[160px]">
-                  <SelectValue placeholder="Filter by queue" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Queues</SelectItem>
-                  {uniqueQueues.map((queueName) => (
-                    <SelectItem key={queueName} value={queueName!}>
-                      {queueName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+          <div className="flex flex-col lg:flex-row gap-4 lg:items-center lg:justify-between">
             <Tabs value={filter} onValueChange={(v) => setFilter(v as FilterKey)}>
               <TabsList>
                 <TabsTrigger value="all">
@@ -142,16 +132,43 @@ export default function QueueClient({ proposals }: QueueClientProps) {
                   <span className="ml-1.5 text-xs text-muted-foreground">({proposals.length})</span>
                 </TabsTrigger>
                 <TabsTrigger value="high">
-                  High
+                  High Priority
                 </TabsTrigger>
                 <TabsTrigger value="direct">
                   Direct
                 </TabsTrigger>
                 <TabsTrigger value="queue">
-                  Queue
+                  Via Queue
                 </TabsTrigger>
               </TabsList>
             </Tabs>
+
+            <div className="flex items-center gap-2">
+              {uniqueQueues.length > 0 && (
+                <Select value={queueFilter} onValueChange={setQueueFilter}>
+                  <SelectTrigger className="w-[160px]">
+                    <SelectValue placeholder="Filter by queue" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Queues</SelectItem>
+                    {uniqueQueues.map((queueName) => (
+                      <SelectItem key={queueName} value={queueName!}>
+                        {queueName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              <div className="relative w-full lg:w-64">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search proposals..."
+                  className="pl-9"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+            </div>
           </div>
         </div>
 
@@ -163,89 +180,114 @@ export default function QueueClient({ proposals }: QueueClientProps) {
             action={{ label: "Show all", onClick: () => { setFilter("all"); setQueueFilter("all"); setSearch(""); } }}
           />
         ) : (
-          <div className="divide-y">
-            {filteredItems.map((item) => (
-              <QueueRow key={item.id} item={item} onOpen={() => router.push(`/dashboard/proposals/${item.id}`)} />
-            ))}
-          </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Proposal</TableHead>
+                <TableHead className="hidden md:table-cell">Fund</TableHead>
+                <TableHead>Amount</TableHead>
+                <TableHead className="hidden lg:table-cell">Queue</TableHead>
+                <TableHead className="hidden sm:table-cell">Due Date</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="w-24"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredItems.map((item) => {
+                const isInReview = item.status === "In Review";
+                const StatusIcon = isInReview ? Play : undefined;
+
+                return (
+                  <TableRow
+                    key={item.id}
+                    className="group cursor-pointer"
+                    onClick={() => router.push(`/dashboard/proposals/${item.id}`)}
+                  >
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <div className={`w-1 h-10 rounded-full shrink-0 ${
+                          item.priority === "High"
+                            ? "bg-red-500"
+                            : item.priority === "Medium"
+                            ? "bg-amber-500"
+                            : "bg-slate-300 dark:bg-slate-600"
+                        }`} />
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs text-muted-foreground">{item.id}</span>
+                            {item.priority === "High" && (
+                              <StatusBadge variant="error" className="text-[10px] px-1 py-0">
+                                High
+                              </StatusBadge>
+                            )}
+                          </div>
+                          <span className="font-medium">{item.name}</span>
+                          <p className="text-sm text-muted-foreground truncate max-w-[200px]">
+                            {item.applicant}
+                          </p>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      <span className="text-sm">{item.fund}</span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="font-medium tabular-nums">{formatAmount(item.amount)}</span>
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell">
+                      {item.assignedQueueName ? (
+                        <div className="flex items-center gap-2">
+                          <div className="h-6 w-6 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                            <Users className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                          </div>
+                          <span className="text-sm">{item.assignedQueueName}</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center">
+                            <User className="h-3.5 w-3.5 text-primary" />
+                          </div>
+                          <span className="text-sm text-muted-foreground">Direct</span>
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell className="hidden sm:table-cell">
+                      {item.dueDate ? (
+                        <StatusBadge variant="warning">
+                          {item.dueDate}
+                        </StatusBadge>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge
+                        variant={statusVariants[item.status]}
+                        icon={StatusIcon}
+                      >
+                        {item.status}
+                      </StatusBadge>
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        size="sm"
+                        className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push(`/dashboard/proposals/${item.id}`);
+                        }}
+                      >
+                        Open
+                        <ArrowRight className="h-3.5 w-3.5 ml-1.5" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
         )}
       </DataCard>
-    </div>
-  );
-}
-
-interface QueueRowProps {
-  item: ProposalWithAssignment;
-  onOpen: () => void;
-}
-
-function QueueRow({ item, onOpen }: QueueRowProps) {
-  const priority = item.priority as PriorityKey;
-  const isInReview = item.status === "In Review";
-
-  return (
-    <div className="flex items-center gap-4 p-4 hover:bg-muted/30 transition-colors group">
-      <div
-        className={`w-1 h-12 rounded-full shrink-0 ${
-          priority === "High"
-            ? "bg-red-500"
-            : priority === "Medium"
-            ? "bg-amber-500"
-            : "bg-slate-300 dark:bg-slate-600"
-        }`}
-      />
-
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="font-mono text-xs text-muted-foreground">{item.id}</span>
-          <span className="font-medium truncate">{item.name}</span>
-          {priority === "High" && (
-            <StatusBadge variant="error">
-              High
-            </StatusBadge>
-          )}
-        </div>
-        <div className="flex items-center gap-3 text-sm text-muted-foreground">
-          <span>{item.applicant}</span>
-          <span className="text-muted-foreground/50">•</span>
-          <span className="tabular-nums">{formatAmount(item.amount)}</span>
-        </div>
-      </div>
-
-      <div className="hidden sm:flex items-center gap-3">
-        <StatusBadge variant={isInReview ? "warning" : "info"}>
-          {isInReview && <Play className="h-3 w-3 mr-1 fill-current" />}
-          {item.status}
-        </StatusBadge>
-      </div>
-
-      <div className="hidden md:flex items-center gap-2">
-        <Badge variant="outline" className="text-xs">
-          {item.assignmentType === "direct" ? (
-            <>
-              <User className="h-3 w-3 mr-1" />
-              Direct
-            </>
-          ) : (
-            <>
-              <Users className="h-3 w-3 mr-1" />
-              {item.assignedQueueName || "Queue"}
-            </>
-          )}
-        </Badge>
-      </div>
-
-      {item.dueDate && (
-        <div className="hidden lg:block text-right w-24">
-          <p className="text-sm font-medium">{item.dueDate}</p>
-          <p className="text-xs text-muted-foreground">Due date</p>
-        </div>
-      )}
-
-      <Button size="sm" className="shrink-0" onClick={onOpen}>
-        Open
-        <ArrowRight className="h-3.5 w-3.5 ml-1.5" />
-      </Button>
     </div>
   );
 }
