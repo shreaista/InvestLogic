@@ -401,21 +401,39 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
   const [evaluating, setEvaluating] = useState(false);
   const [evaluationMessage, setEvaluationMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
-  // NEW: Load evaluations
-  const loadEvaluations = useCallback(async (proposalId?: string, resetToLatest: boolean = true) => {
+  // Helper to sort evaluations by evaluatedAt DESC (newest first)
+  const sortEvaluationsDesc = (evals: EvaluationMetadata[]): EvaluationMetadata[] => {
+    return [...evals].sort((a, b) => {
+      const dateA = new Date(a.evaluatedAt).getTime();
+      const dateB = new Date(b.evaluatedAt).getTime();
+      return dateB - dateA;
+    });
+  };
+
+  // NEW: Load evaluations - always resets to show latest evaluation
+  const loadEvaluations = useCallback(async (proposalId?: string) => {
     const id = proposalId || proposal?.id;
     if (!id) return;
     setEvaluationsLoading(true);
+    
+    // Clear stale state before fetching
+    setViewingHistorical(false);
+    
     try {
       const res = await fetch(`/api/proposals/${id}/evaluations?includeLatest=true`);
       const data = await res.json();
       if (data.ok) {
-        setEvaluations(data.data.evaluations || []);
-        setLatestEvaluation(data.data.latestReport || null);
-        if (resetToLatest) {
-          setDisplayedEvaluation(data.data.latestReport || null);
-          setViewingHistorical(false);
-        }
+        // Sort evaluations client-side as defensive measure
+        const sortedEvaluations = sortEvaluationsDesc(data.data.evaluations || []);
+        setEvaluations(sortedEvaluations);
+        
+        // Always set latest evaluation from server response
+        const latestReport = data.data.latestReport || null;
+        setLatestEvaluation(latestReport);
+        
+        // Always display the latest evaluation (no stale state)
+        setDisplayedEvaluation(latestReport);
+        setViewingHistorical(false);
       }
     } catch {
       console.error("Failed to load evaluations");
@@ -436,6 +454,9 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
     if (!proposal) return;
     setEvaluating(true);
     setEvaluationMessage(null);
+    
+    // Clear stale evaluation state before running new evaluation
+    setViewingHistorical(false);
 
     try {
       const res = await fetch(`/api/proposals/${proposal.id}/evaluate`, {
@@ -445,13 +466,19 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
       const data = await res.json();
 
       if (data.ok) {
+        const newReport = data.data.report;
         setEvaluationMessage({
-          text: `Evaluation completed. Fit Score: ${data.data.report.fitScore}`,
+          text: `Evaluation completed. Fit Score: ${newReport.fitScore}`,
           type: "success",
         });
-        // Immediately reload evaluations and reset to show the newest one
-        // This ensures old warnings from previous evaluations are cleared
-        await loadEvaluations(undefined, true);
+        
+        // Immediately set the new evaluation as displayed (clear old state)
+        setLatestEvaluation(newReport);
+        setDisplayedEvaluation(newReport);
+        setViewingHistorical(false);
+        
+        // Then reload the full list from server to sync evaluation history
+        await loadEvaluations();
       } else {
         setEvaluationMessage({ text: data.error || "Evaluation failed", type: "error" });
       }
@@ -1345,6 +1372,14 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
                     </ul>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* Showing latest evaluation indicator */}
+            {!viewingHistorical && (
+              <div className="px-5 py-2 bg-emerald-50 border-b border-emerald-100 flex items-center gap-2">
+                <CheckCircle className="h-4 w-4 text-emerald-600" />
+                <span className="text-sm text-emerald-700">Showing latest evaluation</span>
               </div>
             )}
 
