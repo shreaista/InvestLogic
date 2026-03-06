@@ -158,7 +158,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     const file = formData.get("file") as File | null;
-    const formTenantId = formData.get("tenantId") as string | null;
     const mandateKey = formData.get("mandateKey") as string | null;
     
     console.log("[fundMandates.upload] file exists:", !!file);
@@ -176,16 +175,16 @@ export async function POST(request: NextRequest, context: RouteContext) {
       throw new AuthzHttpError(400, "fundId is required");
     }
 
-    const effectiveTenantId = formTenantId || tenantIdFromContext;
-    
-    if (!effectiveTenantId) {
+    if (!tenantIdFromContext) {
       throw new AuthzHttpError(400, "tenantId is required");
     }
+
+    const tenantId = tenantIdFromContext;
 
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    const blobPath = buildFundMandatePath(effectiveTenantId, fundId, file.name);
+    const blobPath = buildFundMandatePath(tenantId, fundId, file.name);
     const container = getDefaultContainer();
 
     console.log("[fundMandates.upload] uploading to blobPath:", blobPath);
@@ -196,7 +195,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       contentType: file.type || "application/octet-stream",
       buffer,
       metadata: {
-        tenantId: effectiveTenantId,
+        tenantId,
         fundId,
         originalFilename: file.name,
         ...(mandateKey ? { mandateKey } : {}),

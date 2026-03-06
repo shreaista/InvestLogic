@@ -84,11 +84,18 @@ function formatCurrency(amount: number): string {
 }
 
 function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  if (!dateString) return "-";
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return "-";
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  } catch {
+    return "-";
+  }
 }
 
 function formatFileSize(bytes: number): string {
@@ -145,9 +152,18 @@ export default function FundsClient({ funds: initialFunds, fundMandatesEnabled, 
     setBlobLoading(true);
     try {
       const res = await fetch(`/api/tenant/funds/${fundId}/mandates`);
-      const data = await res.json();
-      if (data.ok) {
-        setBlobMandates(data.data.mandates || []);
+      let data: { ok?: boolean; data?: { mandates?: BlobMandate[] }; error?: string } = {};
+      try {
+        data = await res.json();
+      } catch {
+        console.error("Failed to parse blob mandates response");
+        setBlobLoading(false);
+        return;
+      }
+      if (data.ok && Array.isArray(data.data?.mandates)) {
+        setBlobMandates(data.data.mandates);
+      } else {
+        setBlobMandates([]);
       }
     } catch {
       console.error("Failed to load blob mandates");
@@ -166,23 +182,36 @@ export default function FundsClient({ funds: initialFunds, fundMandatesEnabled, 
         method: "POST",
         body: formData,
       });
-      const data = await res.json();
 
-      if (data.ok) {
+      let data: { ok?: boolean; data?: { fileName?: string; blobPath?: string }; error?: string } = {};
+      try {
+        data = await res.json();
+      } catch {
         setBlobUploadMessage({
-          message: `Uploaded: ${data.data.fileName}`,
+          message: "Upload failed: Invalid response from server",
+          type: "error",
+        });
+        setBlobLoading(false);
+        return;
+      }
+
+      if (!res.ok || !data.ok) {
+        const errorMessage = typeof data.error === "string" ? data.error : "Upload failed";
+        setBlobUploadMessage({
+          message: errorMessage,
+          type: "error",
+        });
+      } else {
+        const fileName = data.data?.fileName || file.name || "file";
+        setBlobUploadMessage({
+          message: `Uploaded: ${fileName}`,
           type: "success",
         });
         await loadBlobMandates(fundId);
-      } else {
-        setBlobUploadMessage({
-          message: data.error || "Upload failed",
-          type: "error",
-        });
       }
     } catch {
       setBlobUploadMessage({
-        message: "Network error during upload",
+        message: "Upload failed",
         type: "error",
       });
     }
@@ -948,15 +977,17 @@ export default function FundsClient({ funds: initialFunds, fundMandatesEnabled, 
                   <div className="space-y-2">
                     {blobMandates.map((blob, index) => (
                       <div
-                        key={blob.path || index}
+                        key={blob.path || `blob-${index}`}
                         className="flex items-center justify-between p-3 rounded-lg border bg-muted/30"
                       >
                         <div className="flex items-center gap-3">
                           <FileText className="h-5 w-5 text-muted-foreground" />
                           <div>
-                            <p className="text-sm font-medium">{blob.fileName || blob.path.split("/").pop()}</p>
+                            <p className="text-sm font-medium">
+                              {blob.fileName || (typeof blob.path === "string" && blob.path ? blob.path.split("/").pop() : "Unknown file")}
+                            </p>
                             <p className="text-xs text-muted-foreground">
-                              {formatFileSize(blob.size)} • {formatDate(blob.lastModified)}
+                              {formatFileSize(blob.size || 0)} • {formatDate(blob.lastModified || "")}
                             </p>
                           </div>
                         </div>
