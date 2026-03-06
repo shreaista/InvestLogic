@@ -395,12 +395,14 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
   // NEW: Evaluation state
   const [evaluations, setEvaluations] = useState<EvaluationMetadata[]>([]);
   const [latestEvaluation, setLatestEvaluation] = useState<EvaluationReport | null>(null);
+  const [displayedEvaluation, setDisplayedEvaluation] = useState<EvaluationReport | null>(null);
+  const [viewingHistorical, setViewingHistorical] = useState(false);
   const [evaluationsLoading, setEvaluationsLoading] = useState(false);
   const [evaluating, setEvaluating] = useState(false);
   const [evaluationMessage, setEvaluationMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
   // NEW: Load evaluations
-  const loadEvaluations = useCallback(async (proposalId?: string) => {
+  const loadEvaluations = useCallback(async (proposalId?: string, resetToLatest: boolean = true) => {
     const id = proposalId || proposal?.id;
     if (!id) return;
     setEvaluationsLoading(true);
@@ -410,6 +412,10 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
       if (data.ok) {
         setEvaluations(data.data.evaluations || []);
         setLatestEvaluation(data.data.latestReport || null);
+        if (resetToLatest) {
+          setDisplayedEvaluation(data.data.latestReport || null);
+          setViewingHistorical(false);
+        }
       }
     } catch {
       console.error("Failed to load evaluations");
@@ -444,7 +450,9 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
           type: "success",
         });
         setLatestEvaluation(data.data.report);
-        await loadEvaluations();
+        setDisplayedEvaluation(data.data.report);
+        setViewingHistorical(false);
+        await loadEvaluations(undefined, false);
       } else {
         setEvaluationMessage({ text: data.error || "Evaluation failed", type: "error" });
       }
@@ -465,7 +473,7 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
   };
 
   // View a specific evaluation (load it into the main panel)
-  const handleViewEvaluation = async (blobPath: string) => {
+  const handleViewEvaluation = async (blobPath: string, isLatest: boolean = false) => {
     if (!proposal) return;
     setEvaluationsLoading(true);
     try {
@@ -474,12 +482,21 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
       );
       if (res.ok) {
         const report = await res.json();
-        setLatestEvaluation(report);
+        setDisplayedEvaluation(report);
+        setViewingHistorical(!isLatest);
       }
     } catch {
       console.error("Failed to load evaluation");
     }
     setEvaluationsLoading(false);
+  };
+
+  // Reset to show the latest evaluation
+  const handleShowLatest = () => {
+    if (latestEvaluation) {
+      setDisplayedEvaluation(latestEvaluation);
+      setViewingHistorical(false);
+    }
   };
 
   // NEW: Get score color
@@ -1227,10 +1244,12 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
             <Button
               variant="outline"
               size="sm"
-              onClick={() => loadEvaluations()}
-              disabled={evaluationsLoading}
+              onClick={async () => {
+                await Promise.all([loadEvaluations(), loadDocuments()]);
+              }}
+              disabled={evaluationsLoading || loading}
             >
-              {evaluationsLoading ? (
+              {evaluationsLoading || loading ? (
                 <Loader2 className="h-4 w-4 mr-1 animate-spin" />
               ) : (
                 <RefreshCw className="h-4 w-4 mr-1" />
@@ -1265,15 +1284,38 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
           </div>
         )}
 
-        {evaluationsLoading && !latestEvaluation ? (
+        {evaluationsLoading && !displayedEvaluation ? (
           <div className="p-6 text-center text-muted-foreground">
             <Loader2 className="h-8 w-8 mx-auto mb-2 animate-spin opacity-50" />
             <p className="text-sm">Loading evaluations...</p>
           </div>
-        ) : latestEvaluation ? (
+        ) : displayedEvaluation ? (
           <div>
+            {/* Historical evaluation warning banner */}
+            {viewingHistorical && (
+              <div className="px-5 py-3 bg-blue-50 border-b border-blue-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-start gap-2">
+                    <History className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-blue-800">Viewing Historical Evaluation</p>
+                      <p className="text-sm text-blue-700">This is not the most recent evaluation. Click &quot;Show Latest&quot; to view the newest one.</p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleShowLatest}
+                    className="border-blue-300 text-blue-700 hover:bg-blue-100"
+                  >
+                    Show Latest
+                  </Button>
+                </div>
+              </div>
+            )}
+
             {/* Warning Banner: No documents/templates */}
-            {latestEvaluation.inputs.proposalDocuments === 0 && latestEvaluation.inputs.mandateTemplates === 0 && (
+            {displayedEvaluation.inputs.proposalDocuments === 0 && displayedEvaluation.inputs.mandateTemplates === 0 && (
               <div className="px-5 py-3 bg-amber-50 border-b border-amber-200">
                 <div className="flex items-start gap-2">
                   <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
@@ -1286,19 +1328,19 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
             )}
 
             {/* Extraction Warnings Banner */}
-            {latestEvaluation.inputs.extractionWarnings && latestEvaluation.inputs.extractionWarnings.length > 0 && (
+            {displayedEvaluation.inputs.extractionWarnings && displayedEvaluation.inputs.extractionWarnings.length > 0 && (
               <div className="px-5 py-3 bg-amber-50 border-b border-amber-200">
                 <div className="flex items-start gap-2">
                   <Info className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
                   <div>
                     <p className="text-sm font-medium text-amber-800">Text Extraction Warnings</p>
                     <ul className="mt-1 text-sm text-amber-700">
-                      {latestEvaluation.inputs.extractionWarnings.slice(0, 3).map((warning, i) => (
+                      {displayedEvaluation.inputs.extractionWarnings.slice(0, 3).map((warning, i) => (
                         <li key={i}>• {warning}</li>
                       ))}
-                      {latestEvaluation.inputs.extractionWarnings.length > 3 && (
+                      {displayedEvaluation.inputs.extractionWarnings.length > 3 && (
                         <li className="text-amber-600">
-                          ... and {latestEvaluation.inputs.extractionWarnings.length - 3} more
+                          ... and {displayedEvaluation.inputs.extractionWarnings.length - 3} more
                         </li>
                       )}
                     </ul>
@@ -1311,48 +1353,48 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
             <div className="flex items-center justify-between p-5 border-b">
               <div className="flex items-center gap-4">
                 {/* Show "—" when no docs/templates, otherwise show score */}
-                {latestEvaluation.inputs.proposalDocuments === 0 && latestEvaluation.inputs.mandateTemplates === 0 ? (
+                {displayedEvaluation.inputs.proposalDocuments === 0 && displayedEvaluation.inputs.mandateTemplates === 0 ? (
                   <div className="flex items-center justify-center w-16 h-16 rounded-full bg-gray-100">
                     <span className="text-2xl font-bold text-gray-400">—</span>
                   </div>
                 ) : (
-                  <div className={`flex items-center justify-center w-16 h-16 rounded-full ${latestEvaluation.fitScore !== null ? getScoreBg(latestEvaluation.fitScore) : 'bg-gray-100'}`}>
-                    <span className={`text-2xl font-bold ${latestEvaluation.fitScore !== null ? getScoreColor(latestEvaluation.fitScore) : 'text-gray-400'}`}>
-                      {latestEvaluation.fitScore !== null ? latestEvaluation.fitScore : "—"}
+                  <div className={`flex items-center justify-center w-16 h-16 rounded-full ${displayedEvaluation.fitScore !== null ? getScoreBg(displayedEvaluation.fitScore) : 'bg-gray-100'}`}>
+                    <span className={`text-2xl font-bold ${displayedEvaluation.fitScore !== null ? getScoreColor(displayedEvaluation.fitScore) : 'text-gray-400'}`}>
+                      {displayedEvaluation.fitScore !== null ? displayedEvaluation.fitScore : "—"}
                     </span>
                   </div>
                 )}
                 <div>
                   <p className="text-lg font-semibold">
-                    {latestEvaluation.inputs.proposalDocuments === 0 && latestEvaluation.inputs.mandateTemplates === 0
+                    {displayedEvaluation.inputs.proposalDocuments === 0 && displayedEvaluation.inputs.mandateTemplates === 0
                       ? "Insufficient Inputs"
                       : "Fit Score"}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    Based on {latestEvaluation.inputs.proposalDocuments} document(s) and {latestEvaluation.inputs.mandateTemplates} template(s)
+                    Based on {displayedEvaluation.inputs.proposalDocuments} document(s) and {displayedEvaluation.inputs.mandateTemplates} template(s)
                   </p>
                   {/* Confidence Badge */}
-                  {latestEvaluation.confidence && (
+                  {displayedEvaluation.confidence && (
                     <div className="flex items-center gap-2 mt-1">
                       <ShieldCheck className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span className={`inline-flex items-center px-2 py-0.5 text-xs rounded-full ${getConfidenceColor(latestEvaluation.confidence)}`}>
-                        {latestEvaluation.confidence.charAt(0).toUpperCase() + latestEvaluation.confidence.slice(1)} Confidence
+                      <span className={`inline-flex items-center px-2 py-0.5 text-xs rounded-full ${getConfidenceColor(displayedEvaluation.confidence)}`}>
+                        {displayedEvaluation.confidence.charAt(0).toUpperCase() + displayedEvaluation.confidence.slice(1)} Confidence
                       </span>
                     </div>
                   )}
                 </div>
               </div>
               <div className="text-right text-sm text-muted-foreground">
-                <p>Evaluated {formatDate(latestEvaluation.evaluatedAt)}</p>
-                <p>by {latestEvaluation.evaluatedByEmail}</p>
+                <p>Evaluated {formatDate(displayedEvaluation.evaluatedAt)}</p>
+                <p>by {displayedEvaluation.evaluatedByEmail}</p>
                 <div className="flex items-center justify-end gap-2 mt-1">
-                  {latestEvaluation.engineType === "azure-openai" ? (
+                  {displayedEvaluation.engineType === "azure-openai" ? (
                     <span className="inline-block px-2 py-0.5 text-xs bg-blue-100 text-blue-700 rounded">
-                      Azure OpenAI: {latestEvaluation.model}
+                      Azure OpenAI: {displayedEvaluation.model}
                     </span>
-                  ) : latestEvaluation.engineType === "llm" ? (
+                  ) : displayedEvaluation.engineType === "llm" ? (
                     <span className="inline-block px-2 py-0.5 text-xs bg-indigo-100 text-indigo-700 rounded">
-                      LLM: {latestEvaluation.model}
+                      LLM: {displayedEvaluation.model}
                     </span>
                   ) : (
                     <span className="inline-block px-2 py-0.5 text-xs bg-amber-100 text-amber-700 rounded">
@@ -1367,11 +1409,11 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
             <div className="grid md:grid-cols-2 gap-4 p-5 border-b">
               <div>
                 <p className="text-sm font-medium mb-2">Mandate Summary</p>
-                <p className="text-sm text-muted-foreground">{latestEvaluation.mandateSummary}</p>
+                <p className="text-sm text-muted-foreground">{displayedEvaluation.mandateSummary}</p>
               </div>
               <div>
                 <p className="text-sm font-medium mb-2">Proposal Summary</p>
-                <p className="text-sm text-muted-foreground">{latestEvaluation.proposalSummary}</p>
+                <p className="text-sm text-muted-foreground">{displayedEvaluation.proposalSummary}</p>
               </div>
             </div>
 
@@ -1384,7 +1426,7 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
                   <p className="text-sm font-medium">Strengths</p>
                 </div>
                 <ul className="space-y-2">
-                  {latestEvaluation.strengths.map((strength, i) => (
+                  {displayedEvaluation.strengths.map((strength, i) => (
                     <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
                       <CheckCircle className="h-4 w-4 text-emerald-500 mt-0.5 shrink-0" />
                       <span>{strength}</span>
@@ -1400,7 +1442,7 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
                   <p className="text-sm font-medium">Risks</p>
                 </div>
                 <ul className="space-y-2">
-                  {latestEvaluation.risks.map((risk, i) => (
+                  {displayedEvaluation.risks.map((risk, i) => (
                     <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
                       <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
                       <span>{risk}</span>
@@ -1416,7 +1458,7 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
                   <p className="text-sm font-medium">Recommendations</p>
                 </div>
                 <ul className="space-y-2">
-                  {latestEvaluation.recommendations.map((rec, i) => (
+                  {displayedEvaluation.recommendations.map((rec, i) => (
                     <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
                       <Lightbulb className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
                       <span>{rec}</span>
@@ -1429,10 +1471,17 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
             {/* Previous Evaluations */}
             {evaluations.length > 0 && (
               <div>
-                <div className="px-5 py-3 border-b bg-muted/10 flex items-center gap-2">
-                  <History className="h-4 w-4 text-muted-foreground" />
-                  <p className="text-sm font-medium">Evaluation History</p>
-                  <span className="text-xs text-muted-foreground">({evaluations.length} total)</span>
+                <div className="px-5 py-3 border-b bg-muted/10">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <History className="h-4 w-4 text-muted-foreground" />
+                      <p className="text-sm font-medium">Evaluation History</p>
+                      <span className="text-xs text-muted-foreground">({evaluations.length} total)</span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Main panel displays the {viewingHistorical ? "selected" : "latest"} evaluation. Click &quot;View&quot; to see older evaluations.
+                  </p>
                 </div>
                 <Table>
                   <TableHeader>
@@ -1445,7 +1494,10 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
                   </TableHeader>
                   <TableBody>
                     {evaluations.slice(0, 5).map((eval_, i) => (
-                      <TableRow key={eval_.blobPath} className="group">
+                      <TableRow 
+                        key={eval_.blobPath} 
+                        className={`group ${displayedEvaluation?.evaluationId === eval_.evaluationId ? "bg-indigo-50" : ""}`}
+                      >
                         <TableCell>
                           <div className="flex items-center gap-2">
                             {i === 0 && (
@@ -1455,6 +1507,11 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
                             {i === 0 && (
                               <span className="text-xs bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded">
                                 Latest
+                              </span>
+                            )}
+                            {displayedEvaluation?.evaluationId === eval_.evaluationId && i !== 0 && (
+                              <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
+                                Viewing
                               </span>
                             )}
                           </div>
@@ -1476,7 +1533,7 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleViewEvaluation(eval_.blobPath)}
+                              onClick={() => handleViewEvaluation(eval_.blobPath, i === 0)}
                               title="View details"
                             >
                               <Eye className="h-4 w-4 mr-1" />

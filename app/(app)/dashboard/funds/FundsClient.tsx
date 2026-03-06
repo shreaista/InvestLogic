@@ -105,11 +105,12 @@ function formatFileSize(bytes: number): string {
 }
 
 interface BlobMandate {
-  path: string;
-  lastModified: string;
+  name: string;
+  mandateKey: string;
+  uploadedAt: string;
+  blobName: string;
   size: number;
-  contentType?: string;
-  fileName?: string;
+  contentType: string;
 }
 
 interface FundsClientProps {
@@ -137,6 +138,7 @@ export default function FundsClient({ funds: initialFunds, fundMandatesEnabled, 
   const [blobMandates, setBlobMandates] = useState<BlobMandate[]>([]);
   const [blobLoading, setBlobLoading] = useState(false);
   const [blobUploadMessage, setBlobUploadMessage] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [blobMandateKey, setBlobMandateKey] = useState("");
   const blobFileInputRef = useRef<HTMLInputElement>(null);
 
   const [newMandate, setNewMandate] = useState({
@@ -148,11 +150,11 @@ export default function FundsClient({ funds: initialFunds, fundMandatesEnabled, 
     notes: "",
   });
 
-  const loadBlobMandates = async (fundId: string) => {
+  const loadBlobMandates = async () => {
     setBlobLoading(true);
     try {
-      const res = await fetch(`/api/tenant/funds/${fundId}/mandates`);
-      let data: { ok?: boolean; data?: { mandates?: BlobMandate[] }; error?: string } = {};
+      const res = await fetch("/api/tenant/fund-mandates?source=blob");
+      let data: { ok?: boolean; data?: { files?: BlobMandate[] }; error?: string } = {};
       try {
         data = await res.json();
       } catch {
@@ -160,8 +162,8 @@ export default function FundsClient({ funds: initialFunds, fundMandatesEnabled, 
         setBlobLoading(false);
         return;
       }
-      if (data.ok && Array.isArray(data.data?.mandates)) {
-        setBlobMandates(data.data.mandates);
+      if (data.ok && Array.isArray(data.data?.files)) {
+        setBlobMandates(data.data.files);
       } else {
         setBlobMandates([]);
       }
@@ -171,19 +173,20 @@ export default function FundsClient({ funds: initialFunds, fundMandatesEnabled, 
     setBlobLoading(false);
   };
 
-  const handleBlobUpload = async (fundId: string, file: File) => {
+  const handleBlobUpload = async (mandateKey: string, file: File) => {
     setBlobLoading(true);
     setBlobUploadMessage(null);
     try {
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("mandateKey", mandateKey);
 
-      const res = await fetch(`/api/tenant/funds/${fundId}/mandates`, {
+      const res = await fetch("/api/tenant/fund-mandates/upload", {
         method: "POST",
         body: formData,
       });
 
-      let data: { ok?: boolean; data?: { fileName?: string; blobPath?: string }; error?: string } = {};
+      let data: { ok?: boolean; data?: { filename?: string; blobName?: string }; error?: string } = {};
       try {
         data = await res.json();
       } catch {
@@ -202,12 +205,12 @@ export default function FundsClient({ funds: initialFunds, fundMandatesEnabled, 
           type: "error",
         });
       } else {
-        const fileName = data.data?.fileName || file.name || "file";
+        const fileName = data.data?.filename || file.name || "file";
         setBlobUploadMessage({
           message: `Uploaded: ${fileName}`,
           type: "success",
         });
-        await loadBlobMandates(fundId);
+        await loadBlobMandates();
       }
     } catch {
       setBlobUploadMessage({
@@ -939,32 +942,10 @@ export default function FundsClient({ funds: initialFunds, fundMandatesEnabled, 
                     </CardDescription>
                   </div>
                   <div className="flex items-center gap-2">
-                    <input
-                      type="file"
-                      accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                      className="hidden"
-                      ref={blobFileInputRef}
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          const ext = file.name.toLowerCase().slice(file.name.lastIndexOf("."));
-                          const allowedExtensions = [".pdf", ".doc", ".docx"];
-                          if (!allowedExtensions.includes(ext)) {
-                            setBlobUploadMessage({
-                              message: "Only PDF, DOC, and DOCX files are supported.",
-                              type: "error",
-                            });
-                            if (blobFileInputRef.current) blobFileInputRef.current.value = "";
-                            return;
-                          }
-                          handleBlobUpload("F-001", file);
-                        }
-                      }}
-                    />
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => loadBlobMandates("F-001")}
+                      onClick={() => loadBlobMandates()}
                       disabled={blobLoading}
                     >
                       {blobLoading ? (
@@ -972,14 +953,6 @@ export default function FundsClient({ funds: initialFunds, fundMandatesEnabled, 
                       ) : (
                         "Refresh"
                       )}
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={() => blobFileInputRef.current?.click()}
-                      disabled={blobLoading}
-                    >
-                      <Upload className="h-4 w-4 mr-2" />
-                      Upload
                     </Button>
                   </div>
                 </div>
@@ -990,36 +963,107 @@ export default function FundsClient({ funds: initialFunds, fundMandatesEnabled, 
                 )}
               </CardHeader>
               <CardContent>
+                <div className="mb-4 p-3 bg-muted/30 rounded-lg border">
+                  <p className="text-sm font-medium mb-2">Upload New Template</p>
+                  <div className="flex items-end gap-3">
+                    <div className="flex-1">
+                      <Label htmlFor="blobMandateKey" className="text-xs">Mandate Key</Label>
+                      <Input
+                        id="blobMandateKey"
+                        value={blobMandateKey}
+                        onChange={(e) => setBlobMandateKey(e.target.value)}
+                        placeholder="e.g., growth-equity-2026"
+                        className="h-8 text-sm mt-1"
+                      />
+                    </div>
+                    <div>
+                      <input
+                        type="file"
+                        accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                        className="hidden"
+                        ref={blobFileInputRef}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const ext = file.name.toLowerCase().slice(file.name.lastIndexOf("."));
+                            const allowedExtensions = [".pdf", ".doc", ".docx"];
+                            if (!allowedExtensions.includes(ext)) {
+                              setBlobUploadMessage({
+                                message: "Only PDF, DOC, and DOCX files are supported.",
+                                type: "error",
+                              });
+                              if (blobFileInputRef.current) blobFileInputRef.current.value = "";
+                              return;
+                            }
+                            if (!blobMandateKey.trim()) {
+                              setBlobUploadMessage({
+                                message: "Please enter a mandate key first.",
+                                type: "error",
+                              });
+                              if (blobFileInputRef.current) blobFileInputRef.current.value = "";
+                              return;
+                            }
+                            handleBlobUpload(blobMandateKey.trim(), file);
+                          }
+                        }}
+                      />
+                      <Button
+                        size="sm"
+                        onClick={() => blobFileInputRef.current?.click()}
+                        disabled={blobLoading || !blobMandateKey.trim()}
+                      >
+                        <Upload className="h-4 w-4 mr-2" />
+                        Upload
+                      </Button>
+                    </div>
+                  </div>
+                </div>
                 {blobMandates.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
                     <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
                     <p>No mandate templates uploaded yet.</p>
-                    <p className="text-xs mt-1">Click &quot;Refresh&quot; to load templates or &quot;Upload&quot; to add one.</p>
+                    <p className="text-xs mt-1">Click &quot;Refresh&quot; to load templates or upload one above.</p>
                   </div>
                 ) : (
-                  <div className="space-y-2">
-                    {blobMandates.map((blob, index) => (
-                      <div
-                        key={blob.path || `blob-${index}`}
-                        className="flex items-center justify-between p-3 rounded-lg border bg-muted/30"
-                      >
-                        <div className="flex items-center gap-3">
-                          <FileText className="h-5 w-5 text-muted-foreground" />
-                          <div>
-                            <p className="text-sm font-medium">
-                              {blob.fileName || (typeof blob.path === "string" && blob.path ? blob.path.split("/").pop() : "Unknown file")}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {formatFileSize(blob.size || 0)} • {formatDate(blob.lastModified || "")}
-                            </p>
-                          </div>
-                        </div>
-                        <Badge variant="outline" className="text-xs">
-                          {blob.contentType?.includes("pdf") ? "PDF" : "DOCX"}
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>File Name</TableHead>
+                        <TableHead>Mandate Key</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead className="text-right">Size</TableHead>
+                        <TableHead>Uploaded</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {blobMandates.map((blob) => (
+                        <TableRow key={blob.blobName}>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <FileText className="h-4 w-4 text-muted-foreground" />
+                              <span className="font-medium">{blob.name || "Unknown file"}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{blob.mandateKey || "-"}</Badge>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {blob.contentType?.includes("pdf")
+                              ? "PDF"
+                              : blob.contentType?.includes("word")
+                              ? "DOCX"
+                              : "DOC"}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {formatFileSize(blob.size || 0)}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {formatDate(blob.uploadedAt || "")}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 )}
               </CardContent>
             </Card>

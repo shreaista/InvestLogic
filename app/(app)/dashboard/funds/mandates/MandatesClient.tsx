@@ -23,12 +23,38 @@ import {
 } from "lucide-react";
 
 interface FundMandateBlob {
-  name: string;
-  mandateKey: string;
-  uploadedAt: string;
+  name?: string;
+  mandateKey?: string;
+  uploadedAt?: string;
   blobName: string;
-  size: number;
-  contentType: string;
+  size?: number;
+  contentType?: string;
+}
+
+function extractFilenameFromBlobName(blobName: string): string {
+  if (!blobName) return "";
+  const parts = blobName.split("/");
+  return parts[parts.length - 1] || blobName;
+}
+
+function getDisplayFileName(blob: FundMandateBlob): string {
+  if (blob.name && blob.name.trim()) return blob.name;
+  const extracted = extractFilenameFromBlobName(blob.blobName);
+  if (extracted && extracted.trim()) return extracted;
+  return "Unknown file";
+}
+
+function getDisplayContentType(blob: FundMandateBlob): string {
+  if (blob.contentType) {
+    if (blob.contentType.includes("pdf")) return "PDF";
+    if (blob.contentType.includes("word")) return "DOCX";
+    if (blob.contentType.includes("msword")) return "DOC";
+  }
+  const filename = getDisplayFileName(blob).toLowerCase();
+  if (filename.endsWith(".pdf")) return "PDF";
+  if (filename.endsWith(".docx")) return "DOCX";
+  if (filename.endsWith(".doc")) return "DOC";
+  return "FILE";
 }
 
 function formatFileSize(bytes: number): string {
@@ -230,24 +256,20 @@ export default function MandatesClient() {
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <FileText className="h-4 w-4 text-muted-foreground" />
-                      <span className="font-medium">{file.name}</span>
+                      <span className="font-medium">{getDisplayFileName(file)}</span>
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Badge variant="outline">{file.mandateKey}</Badge>
+                    <Badge variant="outline">{file.mandateKey || "-"}</Badge>
                   </TableCell>
                   <TableCell className="text-muted-foreground">
-                    {file.contentType.includes("pdf")
-                      ? "PDF"
-                      : file.contentType.includes("word")
-                      ? "DOCX"
-                      : "DOC"}
+                    {getDisplayContentType(file)}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {formatFileSize(file.size)}
+                    {formatFileSize(file.size || 0)}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
-                    {formatDate(file.uploadedAt)}
+                    {formatDate(file.uploadedAt || "")}
                   </TableCell>
                   <TableCell>
                     <Button
