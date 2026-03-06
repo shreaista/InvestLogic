@@ -589,7 +589,7 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
       const data = await res.json();
 
       if (data.ok) {
-        setMessage({ text: `Deleted: ${filename}`, type: "success" });
+        setMessage({ text: "Document deleted", type: "success" });
         await loadDocuments();
       } else {
         setMessage({ text: data.error || "Delete failed", type: "error" });
