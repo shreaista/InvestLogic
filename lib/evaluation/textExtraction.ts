@@ -2,19 +2,15 @@ import "server-only";
 
 // Text Extraction Helper for Proposal Evaluation
 //
-// Supported formats:
-// - .txt files: Read directly as text
-// - .csv files: Read directly as text
-// - .pdf files: Extract using pdf-parse
-// - .docx files: Extract using mammoth
+// This module coordinates document extraction for evaluation.
+// Uses the documentExtractionClient abstraction for actual extraction.
+// Uses inputPreparation for smart prioritization and truncation.
 
-import { downloadBlob, getDefaultContainer } from "@/lib/storage/azureBlob";
+import { MAX_TOTAL_CHARS } from "./types";
 import {
-  TEXT_EXTRACTABLE_TYPES,
-  BINARY_EXTRACTABLE_TYPES,
-  MAX_TOTAL_CHARS,
-} from "./types";
-import { extractDocxText, extractPdfText } from "@/lib/textExtractor";
+  extractDocumentsFromBlobs,
+  type BatchExtractionInput,
+} from "@/lib/extraction/documentExtractionClient";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -44,122 +40,16 @@ export interface ExtractedContent {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Text Extraction
+// Text Extraction (using documentExtractionClient)
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Extract text from a single blob
-async function extractTextFromBlob(
-  blobPath: string,
-  contentType: string,
-  uploadedAt: string
-): Promise<DocumentTextResult> {
-  const filename = blobPath.split("/").pop() || blobPath;
-  const container = getDefaultContainer();
-
-  // Check if plain text extraction is supported (txt, csv)
-  if (TEXT_EXTRACTABLE_TYPES.includes(contentType)) {
-    try {
-      const result = await downloadBlob(container, blobPath);
-      
-      if (!result) {
-        return {
-          filename,
-          blobPath,
-          text: `[File: ${filename}] (download failed)`,
-          uploadedAt,
-          isPlaceholder: true,
-          warning: `Failed to download ${filename}`,
-        };
-      }
-
-      // Decode as UTF-8 text - don't truncate here, let inputPreparation handle it
-      const text = result.buffer.toString("utf-8");
-
-      return {
-        filename,
-        blobPath,
-        text,
-        uploadedAt,
-        isPlaceholder: false,
-      };
-    } catch (error) {
-      console.error("[textExtraction] Error extracting text:", error);
-      return {
-        filename,
-        blobPath,
-        text: `[File: ${filename}] (extraction error)`,
-        uploadedAt,
-        isPlaceholder: true,
-        warning: `Error extracting text from ${filename}`,
-      };
-    }
-  }
-
-  // Check if binary extraction is supported (PDF, DOCX)
-  if (BINARY_EXTRACTABLE_TYPES.includes(contentType)) {
-    try {
-      const result = await downloadBlob(container, blobPath);
-      
-      if (!result) {
-        return {
-          filename,
-          blobPath,
-          text: `[File: ${filename}] (download failed)`,
-          uploadedAt,
-          isPlaceholder: true,
-          warning: `Failed to download ${filename}`,
-        };
-      }
-
-      let text: string;
-      
-      // Extract based on content type
-      if (contentType === "application/pdf") {
-        text = await extractPdfText(result.buffer);
-      } else if (
-        contentType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-      ) {
-        text = await extractDocxText(result.buffer);
-      } else {
-        return {
-          filename,
-          blobPath,
-          text: `[File: ${filename}] (unsupported binary type: ${contentType})`,
-          uploadedAt,
-          isPlaceholder: true,
-          warning: `Unsupported binary type for ${filename}`,
-        };
-      }
-      
-      // Don't truncate here - let inputPreparation handle it with proper prioritization
-      return {
-        filename,
-        blobPath,
-        text,
-        uploadedAt,
-        isPlaceholder: false,
-      };
-    } catch (error) {
-      console.error("[textExtraction] Error extracting binary text:", error);
-      return {
-        filename,
-        blobPath,
-        text: `[File: ${filename}] (extraction error)`,
-        uploadedAt,
-        isPlaceholder: true,
-        warning: `Error extracting text from ${filename}: ${error instanceof Error ? error.message : "Unknown error"}`,
-      };
-    }
-  }
-
-  // Unsupported type
+// Convert BlobInfo to BatchExtractionInput
+function toBatchInput(blob: BlobInfo): BatchExtractionInput {
   return {
-    filename,
-    blobPath,
-    text: `[File: ${filename}] (unsupported file type: ${contentType})`,
-    uploadedAt,
-    isPlaceholder: true,
-    warning: `Unsupported file type for ${filename}`,
+    fileName: blob.filename,
+    blobPath: blob.blobPath,
+    contentType: blob.contentType,
+    uploadedAt: blob.uploadedAt,
   };
 }
 
@@ -174,26 +64,30 @@ export interface BlobInfo {
   uploadedAt: string;
 }
 
-// Extract text from all blobs without truncation (truncation handled by inputPreparation)
+// Extract text from all blobs using the extraction client
+// Truncation is handled by inputPreparation
 export async function extractTextFromBlobs(
   blobs: BlobInfo[]
 ): Promise<{ results: DocumentTextResult[]; warnings: string[] }> {
-  const results: DocumentTextResult[] = [];
-  const warnings: string[] = [];
+  const inputs = blobs.map(toBatchInput);
+  const batchResults = await extractDocumentsFromBlobs(inputs);
 
-  for (const blob of blobs) {
-    const result = await extractTextFromBlob(blob.blobPath, blob.contentType, blob.uploadedAt);
-    results.push(result);
+  const results: DocumentTextResult[] = batchResults.map((r) => ({
+    filename: r.fileName,
+    blobPath: r.blobPath,
+    text: r.text,
+    uploadedAt: r.uploadedAt,
+    isPlaceholder: r.isPlaceholder,
+    warning: r.warnings.length > 0 ? r.warnings.join("; ") : undefined,
+  }));
 
-    if (result.warning) {
-      warnings.push(result.warning);
-    }
-  }
+  const warnings = batchResults.flatMap((r) => r.warnings);
 
   return { results, warnings };
 }
 
-// NEW: Extract content from mandate templates and proposal documents
+// Extract content from mandate templates and proposal documents
+// Uses documentExtractionClient for extraction
 // Uses inputPreparation for smart prioritization and truncation
 export async function extractContentForEvaluation(
   mandateBlobs: BlobInfo[],
@@ -202,7 +96,7 @@ export async function extractContentForEvaluation(
   // Import inputPreparation dynamically to avoid circular deps
   const { prepareEvaluationInputs } = await import("./inputPreparation");
 
-  // Extract raw text from all blobs
+  // Extract raw text from all blobs using extraction client
   const mandateExtraction = await extractTextFromBlobs(mandateBlobs);
   const proposalExtraction = await extractTextFromBlobs(proposalBlobs);
 

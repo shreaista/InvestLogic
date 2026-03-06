@@ -176,8 +176,16 @@ function extractMandateKeyFromPath(blobName: string): string {
 }
 
 function extractFilenameFromPath(blobName: string): string {
-  const parts = blobName.split("/");
-  return parts[parts.length - 1] || blobName;
+  if (!blobName) return "";
+  // Remove trailing slash if present
+  const cleanPath = blobName.endsWith("/") ? blobName.slice(0, -1) : blobName;
+  const parts = cleanPath.split("/");
+  const filename = parts[parts.length - 1];
+  // If the last segment looks like a timestamp (YYYYMMDD-HHMMSS), it means there's no filename
+  if (filename && /^\d{8}-\d{6}$/.test(filename)) {
+    return "";
+  }
+  return filename || "";
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

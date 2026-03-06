@@ -104,6 +104,19 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
+function extractFilenameFromBlobPath(blobPath: string): string {
+  if (!blobPath) return "";
+  const parts = blobPath.split("/");
+  return parts[parts.length - 1] || "";
+}
+
+function getDisplayFileName(blob: BlobMandate): string {
+  if (blob.name && blob.name.trim()) return blob.name;
+  const extracted = extractFilenameFromBlobPath(blob.blobName);
+  if (extracted && extracted.trim()) return extracted;
+  return "Unknown file";
+}
+
 interface BlobMandate {
   name: string;
   mandateKey: string;
@@ -171,6 +184,15 @@ export default function FundsClient({ funds: initialFunds, fundMandatesEnabled, 
       console.error("Failed to load blob mandates");
     }
     setBlobLoading(false);
+  };
+
+  // Handle tab changes - load blob mandates when switching to mandates tab
+  const handleTabChange = (nextTab: string) => {
+    const tab = nextTab as "funds" | "mandates";
+    setActiveTab(tab);
+    if (tab === "mandates") {
+      loadBlobMandates();
+    }
   };
 
   const handleBlobUpload = async (mandateKey: string, file: File) => {
@@ -522,7 +544,7 @@ export default function FundsClient({ funds: initialFunds, fundMandatesEnabled, 
         }
       />
 
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "funds" | "mandates")}>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList>
           <TabsTrigger value="funds">
             <Wallet className="h-4 w-4 mr-2" />
@@ -1062,7 +1084,7 @@ export default function FundsClient({ funds: initialFunds, fundMandatesEnabled, 
                           <TableCell>
                             <div className="flex items-center gap-2">
                               <FileText className="h-4 w-4 text-muted-foreground" />
-                              <span className="font-medium">{blob.name || "Unknown file"}</span>
+                              <span className="font-medium">{getDisplayFileName(blob)}</span>
                             </div>
                           </TableCell>
                           <TableCell>
