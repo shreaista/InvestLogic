@@ -23,11 +23,13 @@ import {
   runEvaluationWithProvider,
   isLLMConfigured,
   getLLMProvider,
+  type RAGInput,
 } from "@/lib/llm/openaiClient";
 import {
   extractContentForEvaluation,
   type BlobInfo,
 } from "./textExtraction";
+import { buildRAGEvaluationInput } from "./textChunking";
 import { type EvaluationReport } from "./types";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -324,7 +326,24 @@ export async function runEvaluation(
 
     const extractedContent = await extractContentForEvaluation(mandateBlobs, proposalBlobs);
 
-    // Run LLM evaluation (routes to Azure OpenAI or standard OpenAI)
+    // Build RAG evaluation input using text chunking and relevance matching
+    const ragEvalInput = buildRAGEvaluationInput(
+      extractedContent.proposalText,
+      extractedContent.mandateText
+    );
+
+    // Convert to RAGInput format for LLM
+    const ragInput: RAGInput = {
+      proposalSummary: ragEvalInput.proposalSummary,
+      topMandateSections: ragEvalInput.topMandateSections,
+      matchedPairs: ragEvalInput.matchedPairs.map((pair) => ({
+        proposalExcerpt: pair.proposalExcerpt,
+        mandateExcerpt: pair.mandateExcerpt,
+        score: pair.score,
+      })),
+    };
+
+    // Run LLM evaluation with RAG input (routes to Azure OpenAI or standard OpenAI)
     const llmResult = await runEvaluationWithProvider({
       mandateText: extractedContent.mandateText,
       proposalText: extractedContent.proposalText,
@@ -333,6 +352,7 @@ export async function runEvaluation(
         fundName,
         mandateKey,
       },
+      ragInput: ragEvalInput.topMandateSections.length > 0 ? ragInput : undefined,
     });
 
     if (llmResult.success && llmResult.response) {
@@ -354,6 +374,9 @@ export async function runEvaluation(
           mandateKey,
           totalCharactersProcessed: extractedContent.totalCharacters,
           extractionWarnings: extractedContent.extractionWarnings,
+          // RAG matching metadata
+          matchedSectionsCount: ragEvalInput.matchedSectionsCount,
+          topMandateSectionsPreview: ragEvalInput.topMandateSectionsPreview,
         },
 
         fitScore: llmResult.response.fitScore,
@@ -398,6 +421,9 @@ export async function runEvaluation(
               ? `Azure OpenAI call failed: ${llmResult.error}`
               : `OpenAI call failed: ${llmResult.error}`,
           ],
+          // RAG matching metadata (even on fallback)
+          matchedSectionsCount: ragEvalInput.matchedSectionsCount,
+          topMandateSectionsPreview: ragEvalInput.topMandateSectionsPreview,
         },
 
         fitScore: stubResult.fitScore,

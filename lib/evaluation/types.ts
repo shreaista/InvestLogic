@@ -35,6 +35,9 @@ export const EvaluationReportSchema = z.object({
     mandateKey: z.string().nullable(),
     totalCharactersProcessed: z.number(),
     extractionWarnings: z.array(z.string()),
+    // RAG matching metadata (optional for backwards compatibility)
+    matchedSectionsCount: z.number().optional(),
+    topMandateSectionsPreview: z.string().optional(),
   }),
 
   fitScore: z.number().min(0).max(100).nullable(),

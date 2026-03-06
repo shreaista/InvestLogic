@@ -61,6 +61,18 @@ export function getAzureOpenAIDeploymentName(): string {
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
 
+export interface MatchedPairInfo {
+  proposalExcerpt: string;
+  mandateExcerpt: string;
+  score: number;
+}
+
+export interface RAGInput {
+  proposalSummary: string;
+  topMandateSections: string[];
+  matchedPairs: MatchedPairInfo[];
+}
+
 export interface RunAzureEvaluationParams {
   mandateText: string;
   proposalText: string;
@@ -69,6 +81,8 @@ export interface RunAzureEvaluationParams {
     fundName: string;
     mandateKey: string | null;
   };
+  // Optional RAG input - when provided, uses matched sections instead of full text
+  ragInput?: RAGInput;
 }
 
 export interface RunAzureEvaluationResult {
@@ -98,13 +112,42 @@ You MUST respond with valid JSON only, no additional text.`;
 function buildUserPrompt(
   mandateText: string,
   proposalText: string,
-  context: { proposalId: string; fundName: string; mandateKey: string | null }
+  context: { proposalId: string; fundName: string; mandateKey: string | null },
+  ragInput?: RAGInput
 ): string {
+  // Use RAG-matched sections if available, otherwise fall back to full text
+  let mandateSection: string;
+  let proposalSection: string;
+
+  if (ragInput && ragInput.topMandateSections.length > 0) {
+    // RAG mode: use matched sections
+    const formattedSections = ragInput.topMandateSections
+      .map((section, i) => `[Relevant Section ${i + 1}]\n${section}`)
+      .join("\n\n---\n\n");
+    
+    mandateSection = `The following mandate sections were identified as most relevant to the proposal:\n\n${formattedSections}`;
+    proposalSection = ragInput.proposalSummary || proposalText || "No proposal document content available.";
+
+    // Add matched pairs context if available
+    if (ragInput.matchedPairs.length > 0) {
+      const topPairs = ragInput.matchedPairs.slice(0, 5);
+      const pairsContext = topPairs
+        .map((pair, i) => `Match ${i + 1} (score: ${pair.score}):\n  Proposal: "${pair.proposalExcerpt.substring(0, 100)}..."\n  Mandate: "${pair.mandateExcerpt.substring(0, 100)}..."`)
+        .join("\n\n");
+      
+      mandateSection += `\n\n## Key Matches Between Proposal and Mandate\n${pairsContext}`;
+    }
+  } else {
+    // Fallback: use full text
+    mandateSection = mandateText || "No mandate template content available.";
+    proposalSection = proposalText || "No proposal document content available.";
+  }
+
   return `## Fund Mandate
-${mandateText || "No mandate template content available."}
+${mandateSection}
 
 ## Proposal (ID: ${context.proposalId}, Fund: ${context.fundName})
-${proposalText || "No proposal document content available."}
+${proposalSection}
 
 ## Required Output Format (JSON)
 Respond with a JSON object matching this exact schema:
@@ -215,14 +258,14 @@ function parseJSONResponse(content: string): unknown {
 export async function runAzureEvaluationLLM(
   params: RunAzureEvaluationParams
 ): Promise<RunAzureEvaluationResult> {
-  const { mandateText, proposalText, context } = params;
+  const { mandateText, proposalText, context, ragInput } = params;
 
   try {
     const config = getAzureOpenAIConfig();
 
     const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
       { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: buildUserPrompt(mandateText, proposalText, context) },
+      { role: "user", content: buildUserPrompt(mandateText, proposalText, context, ragInput) },
     ];
 
     // First attempt
