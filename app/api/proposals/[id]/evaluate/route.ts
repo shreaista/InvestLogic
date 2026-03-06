@@ -19,11 +19,16 @@ import { runEvaluation } from "@/lib/evaluation/proposalEvaluator";
 import { checkRateLimit } from "@/lib/evaluation/rateLimiter";
 import { logAudit } from "@/lib/audit";
 
+console.log("[evaluate.route] loaded");
+
 interface RouteContext {
   params: Promise<{ id: string }>;
 }
 
 export async function POST(request: NextRequest, context: RouteContext) {
+  const { id } = await context.params;
+  console.log("[evaluate.route] starting POST for proposal", id);
+
   try {
     const ctx = await getAuthzContext();
 
@@ -43,8 +48,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     // Permission check: llm:use OR report:generate
     requireAnyPermission(ctx, [LLM_USE, REPORT_GENERATE]);
-
-    const { id } = await context.params;
 
     // Check rate limit before processing
     const rateLimitResult = checkRateLimit(tenantId);
@@ -119,6 +122,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
       },
     });
   } catch (error) {
-    return jsonError(error);
+    console.error("[evaluate.route] Error processing evaluation for proposal", id, error);
+    if (error instanceof AuthzHttpError) {
+      return jsonError(error);
+    }
+    return NextResponse.json(
+      { ok: false, error: "Failed to run evaluation" },
+      { status: 500 }
+    );
   }
 }

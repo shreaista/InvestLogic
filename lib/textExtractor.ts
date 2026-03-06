@@ -1,24 +1,25 @@
 import "server-only";
 
-import mammoth from "mammoth";
-import { PDFParse } from "pdf-parse";
-
 /**
  * Extracts text content from DOCX files using mammoth.
+ * Uses dynamic import to avoid module load-time crashes.
  * @param buffer - The file buffer containing DOCX data
  * @returns The extracted plain text content
  */
 export async function extractDocxText(buffer: Buffer): Promise<string> {
-  const result = await mammoth.extractRawText({ buffer });
+  const mammoth = await import("mammoth");
+  const result = await mammoth.default.extractRawText({ buffer });
   return result.value;
 }
 
 /**
  * Extracts text content from PDF files using pdf-parse.
+ * Uses dynamic import to avoid module load-time crashes.
  * @param buffer - The file buffer containing PDF data
  * @returns The extracted plain text content
  */
 export async function extractPdfText(buffer: Buffer): Promise<string> {
+  const { PDFParse } = await import("pdf-parse");
   const parser = new PDFParse({ data: buffer });
   const result = await parser.getText();
   return result.text;
