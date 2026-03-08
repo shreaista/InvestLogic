@@ -3,11 +3,12 @@ import "server-only";
 // Document Extraction Client
 //
 // Abstraction layer for document text extraction.
-// Currently uses local Node.js extraction helpers.
-// Structured to support future Python service integration.
+// Uses Python extractor service when available (better extraction quality).
+// Falls back to Node.js extraction helpers if Python service is unavailable.
 
 import { downloadBlob, getDefaultContainer } from "@/lib/storage/azureBlob";
 import { extractDocxText, extractPdfText } from "@/lib/textExtractor";
+import { extractDocumentViaPython } from "./pythonExtractionClient";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -81,16 +82,13 @@ function extractExtension(fileName: string): string {
 
 /**
  * Extracts text from a document stored in Azure Blob Storage.
- * 
- * Currently uses local Node.js extraction:
+ *
+ * Uses Python extractor service when available for better extraction quality.
+ * Falls back to Node.js extraction if Python service is unavailable:
  * - PDF: pdf-parse
  * - DOCX: mammoth
  * - TXT/CSV: UTF-8 decode
- * 
- * This function is structured to support future Python service integration:
- * - The interface remains stable
- * - Implementation can be swapped to call a Python extraction service
- * 
+ *
  * @param options - Extraction options including blobPath and fileType
  * @returns ExtractionResult with text, warnings, and character count
  */
@@ -110,8 +108,38 @@ export async function extractDocumentFromBlob(
     };
   }
 
-  // Download blob from storage
   const container = getDefaultContainer();
+  const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING || "";
+
+  // Try Python extractor first for binary document types (PDF, DOCX)
+  if (SUPPORTED_BINARY_TYPES.includes(fileType) && connectionString) {
+    console.log(`[extractDocumentFromBlob] Calling Python extractor for: ${displayName}`);
+
+    const pythonResult = await extractDocumentViaPython({
+      connectionString,
+      container,
+      blobPath,
+      fileType,
+    });
+
+    if (pythonResult.success) {
+      console.log(
+        `[extractDocumentFromBlob] Python extraction succeeded for: ${displayName} (${pythonResult.charactersProcessed} chars)`
+      );
+      return {
+        text: pythonResult.text,
+        warnings,
+        charactersProcessed: pythonResult.charactersProcessed,
+      };
+    }
+
+    // Python extraction failed, log warning and fallback to Node extraction
+    const fallbackWarning = `Python extractor unavailable, fallback used for ${displayName}`;
+    console.warn(`[extractDocumentFromBlob] ${fallbackWarning}: ${pythonResult.error}`);
+    warnings.push(fallbackWarning);
+  }
+
+  // Fallback: Download blob and use Node.js extraction
   let buffer: Buffer;
 
   try {
@@ -128,12 +156,15 @@ export async function extractDocumentFromBlob(
     console.error("[extractDocumentFromBlob] Download error:", error);
     return {
       text: "",
-      warnings: [`Error downloading ${displayName}: ${error instanceof Error ? error.message : "Unknown error"}`],
+      warnings: [
+        ...warnings,
+        `Error downloading ${displayName}: ${error instanceof Error ? error.message : "Unknown error"}`,
+      ],
       charactersProcessed: 0,
     };
   }
 
-  // Extract text based on file type
+  // Extract text based on file type using Node.js
   try {
     let text: string;
 
@@ -141,15 +172,19 @@ export async function extractDocumentFromBlob(
       // Plain text files
       text = buffer.toString("utf-8");
     } else if (fileType === "application/pdf") {
-      // PDF extraction
+      // PDF extraction via Node
+      console.log(`[extractDocumentFromBlob] Using Node PDF extraction for: ${displayName}`);
       text = await extractPdfText(buffer);
-    } else if (fileType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
-      // DOCX extraction
+    } else if (
+      fileType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    ) {
+      // DOCX extraction via Node
+      console.log(`[extractDocumentFromBlob] Using Node DOCX extraction for: ${displayName}`);
       text = await extractDocxText(buffer);
     } else {
       return {
         text: "",
-        warnings: [`No extraction handler for file type: ${fileType}`],
+        warnings: [...warnings, `No extraction handler for file type: ${fileType}`],
         charactersProcessed: 0,
       };
     }
@@ -163,7 +198,10 @@ export async function extractDocumentFromBlob(
     console.error("[extractDocumentFromBlob] Extraction error:", error);
     return {
       text: "",
-      warnings: [`Error extracting text from ${displayName}: ${error instanceof Error ? error.message : "Unknown error"}`],
+      warnings: [
+        ...warnings,
+        `Error extracting text from ${displayName}: ${error instanceof Error ? error.message : "Unknown error"}`,
+      ],
       charactersProcessed: 0,
     };
   }
