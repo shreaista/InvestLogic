@@ -316,7 +316,11 @@ function generateStubEvaluation(
 export async function runEvaluation(
   params: RunEvaluationParams
 ): Promise<RunEvaluationResult> {
-  const { tenantId, proposalId, fundName, mandateKey, evaluatedByUserId, evaluatedByEmail } = params;
+  const { tenantId, proposalId, fundName, evaluatedByUserId, evaluatedByEmail } = params;
+  let { mandateKey } = params;
+
+  console.log(`[proposalEvaluator] Starting evaluation for proposal ${proposalId}`);
+  console.log(`[proposalEvaluator] tenantId=${tenantId}, fundName=${fundName}, mandateKey=${mandateKey || "(none)"}`);
 
   // NEW: Gather document metadata
   const proposalDocsResult = await listProposalDocuments(tenantId, proposalId);
@@ -324,22 +328,79 @@ export async function runEvaluation(
     (doc) => !doc.blobPath.includes("/evaluations/")
   );
 
+  // Load mandate templates with robust fallback logic
   let mandateTemplates: FundMandateBlob[] = [];
+  let mandateLoadFallbackReason: string | null = null;
+
+  // Step 1: Try to load mandate templates for the specified mandateKey
   if (mandateKey) {
-    console.log(`[proposalEvaluator] Loading mandate templates for key: ${mandateKey}`);
+    console.log(`[proposalEvaluator] Loading mandate templates for mandateKey: ${mandateKey}`);
     try {
       mandateTemplates = await listFundMandates({ tenantId, mandateKey });
-      console.log(
-        `[proposalEvaluator] Found ${mandateTemplates.length} mandate template(s) for ${mandateKey}`
-      );
-      for (const t of mandateTemplates) {
-        console.log(`[proposalEvaluator]   - ${t.name} (${t.contentType}, ${t.size} bytes)`);
+      if (mandateTemplates.length > 0) {
+        console.log(
+          `[proposalEvaluator] Matched mandateKey: ${mandateKey}, found ${mandateTemplates.length} template(s)`
+        );
+        for (const t of mandateTemplates) {
+          console.log(`[proposalEvaluator]   - ${t.name} (${t.contentType}, ${t.size} bytes, blobPath: ${t.blobName})`);
+        }
+      } else {
+        console.log(`[proposalEvaluator] No templates found for mandateKey: ${mandateKey}, trying fallback...`);
+        mandateLoadFallbackReason = `No templates uploaded for mandateKey: ${mandateKey}`;
       }
     } catch (error) {
-      console.error("[proposalEvaluator] Error listing mandate templates:", error);
+      console.error("[proposalEvaluator] Error listing mandate templates for key:", mandateKey, error);
+      mandateLoadFallbackReason = `Error loading templates for mandateKey ${mandateKey}: ${error instanceof Error ? error.message : "Unknown error"}`;
     }
   } else {
-    console.log("[proposalEvaluator] No mandateKey provided, skipping mandate template loading");
+    console.log("[proposalEvaluator] No mandateKey provided, trying fallback to any uploaded templates...");
+    mandateLoadFallbackReason = "No mandateKey associated with proposal's fund";
+  }
+
+  // Step 2: Fallback - if no templates found, list all mandate templates for the tenant
+  // This is POC-friendly behavior: use any available mandate template
+  if (mandateTemplates.length === 0) {
+    console.log("[proposalEvaluator] Fallback: listing all mandate templates for tenant...");
+    try {
+      const allMandates = await listFundMandates({ tenantId });
+      if (allMandates.length > 0) {
+        // Use the most recently uploaded mandate template(s) for the first available key
+        // Group by mandateKey and take the first group (already sorted newest first)
+        const firstMandateKey = allMandates[0].mandateKey;
+        mandateTemplates = allMandates.filter((m) => m.mandateKey === firstMandateKey);
+        
+        // Update mandateKey to reflect what was actually used
+        if (!mandateKey && firstMandateKey) {
+          mandateKey = firstMandateKey;
+          console.log(`[proposalEvaluator] Fallback: using mandateKey "${mandateKey}" (most recent uploaded)`);
+        }
+        
+        console.log(
+          `[proposalEvaluator] Fallback: found ${mandateTemplates.length} template(s) for mandateKey: ${mandateKey}`
+        );
+        for (const t of mandateTemplates) {
+          console.log(`[proposalEvaluator]   - ${t.name} (${t.contentType}, ${t.size} bytes, blobPath: ${t.blobName})`);
+        }
+      } else {
+        console.log("[proposalEvaluator] No mandate templates found for tenant - evaluation will proceed without mandate text");
+        mandateLoadFallbackReason = "No mandate templates uploaded for this tenant";
+      }
+    } catch (error) {
+      console.error("[proposalEvaluator] Error listing all mandate templates:", error);
+      mandateLoadFallbackReason = `Error listing mandate templates: ${error instanceof Error ? error.message : "Unknown error"}`;
+    }
+  }
+
+  // Log final mandate loading result
+  if (mandateTemplates.length > 0) {
+    const totalSize = mandateTemplates.reduce((sum, t) => sum + t.size, 0);
+    console.log(
+      `[proposalEvaluator] Mandate template loading complete: ${mandateTemplates.length} template(s), ${totalSize} bytes total`
+    );
+  } else {
+    console.log(
+      `[proposalEvaluator] Mandate template loading complete: 0 templates. Fallback reason: ${mandateLoadFallbackReason || "Unknown"}`
+    );
   }
 
   // Generate unique evaluation ID - this will be used as folder name and in report
@@ -367,6 +428,14 @@ export async function runEvaluation(
     }));
 
     const extractedContent = await extractContentForEvaluation(mandateBlobs, proposalBlobs);
+
+    // Log extraction results summary
+    console.log(`[proposalEvaluator] Extraction complete - mandate: ${extractedContent.mandateText.length} chars, proposal: ${extractedContent.proposalText.length} chars`);
+    
+    // Add mandate load fallback reason to warnings if we didn't get any mandate text
+    if (mandateLoadFallbackReason && extractedContent.mandateText.length === 0) {
+      extractedContent.extractionWarnings.push(mandateLoadFallbackReason);
+    }
 
     // Build RAG evaluation input using text chunking and relevance matching
     const ragEvalInput = buildRAGEvaluationInput(
@@ -447,6 +516,17 @@ export async function runEvaluation(
         mandateKey
       );
 
+      // Build extraction warnings
+      const llmFailedWarnings: string[] = [...extractedContent.extractionWarnings, ...stubResult.extractionWarnings];
+      if (mandateLoadFallbackReason && extractedContent.mandateText.length === 0) {
+        llmFailedWarnings.push(mandateLoadFallbackReason);
+      }
+      llmFailedWarnings.push(
+        llmResult.provider === "azure-openai"
+          ? `Azure OpenAI call failed: ${llmResult.error}`
+          : `OpenAI call failed: ${llmResult.error}`
+      );
+
       report = {
         evaluationId,
         proposalId,
@@ -460,13 +540,7 @@ export async function runEvaluation(
           mandateTemplates: mandateTemplates.length,
           mandateKey,
           totalCharactersProcessed: extractedContent.totalCharacters,
-          extractionWarnings: [
-            ...extractedContent.extractionWarnings,
-            ...stubResult.extractionWarnings,
-            llmResult.provider === "azure-openai"
-              ? `Azure OpenAI call failed: ${llmResult.error}`
-              : `OpenAI call failed: ${llmResult.error}`,
-          ],
+          extractionWarnings: llmFailedWarnings,
           // Document processing stats
           processedDocumentsCount: extractedContent.documentStats.processedDocumentsCount,
           truncatedDocumentsCount: extractedContent.documentStats.truncatedDocumentsCount,
@@ -499,6 +573,13 @@ export async function runEvaluation(
       mandateKey
     );
 
+    // Build extraction warnings including mandate load issues
+    const stubExtractionWarnings: string[] = [...stubResult.extractionWarnings];
+    if (mandateLoadFallbackReason && mandateTemplates.length === 0) {
+      stubExtractionWarnings.push(mandateLoadFallbackReason);
+    }
+    stubExtractionWarnings.push("No LLM provider configured (set AZURE_OPENAI_* or OPENAI_API_KEY) - using stub evaluation");
+
     report = {
       evaluationId,
       proposalId,
@@ -512,10 +593,7 @@ export async function runEvaluation(
         mandateTemplates: mandateTemplates.length,
         mandateKey,
         totalCharactersProcessed: 0,
-        extractionWarnings: [
-          ...stubResult.extractionWarnings,
-          "No LLM provider configured (set AZURE_OPENAI_* or OPENAI_API_KEY) - using stub evaluation",
-        ],
+        extractionWarnings: stubExtractionWarnings,
         // Document processing stats (stub has no documents to process)
         processedDocumentsCount: 0,
         truncatedDocumentsCount: 0,
