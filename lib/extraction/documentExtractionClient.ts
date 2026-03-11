@@ -42,6 +42,9 @@ const SUPPORTED_BINARY_TYPES = [
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ];
 
+// File extensions that should use Python extraction first (covers edge cases where MIME type may differ)
+const PYTHON_FIRST_EXTENSIONS = [".pdf", ".docx"];
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Extraction Input Metadata Helper
 // ─────────────────────────────────────────────────────────────────────────────
@@ -81,6 +84,27 @@ function extractExtension(fileName: string): string {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
+ * Determines if a file should use Python extraction first based on extension.
+ * This supplements MIME type checking for more robust handling.
+ */
+function shouldUsePythonExtraction(fileType: string, fileName: string | undefined): boolean {
+  // Check MIME type first
+  if (SUPPORTED_BINARY_TYPES.includes(fileType)) {
+    return true;
+  }
+
+  // Also check file extension as fallback (handles cases where MIME type differs)
+  if (fileName) {
+    const extension = extractExtension(fileName);
+    if (PYTHON_FIRST_EXTENSIONS.includes(extension)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
  * Extracts text from a document stored in Azure Blob Storage.
  *
  * Uses Python extractor service when available for better extraction quality.
@@ -98,9 +122,10 @@ export async function extractDocumentFromBlob(
   const { blobPath, fileType, fileName } = options;
   const displayName = fileName || blobPath.split("/").pop() || blobPath;
   const warnings: string[] = [];
+  const extension = extractExtension(displayName);
 
-  // Validate file type is supported
-  if (!isFileTypeSupported(fileType)) {
+  // Validate file type is supported (check both MIME type and extension)
+  if (!isFileTypeSupported(fileType) && !PYTHON_FIRST_EXTENSIONS.includes(extension)) {
     return {
       text: "",
       warnings: [`Unsupported file type: ${fileType} for ${displayName}`],
@@ -111,16 +136,21 @@ export async function extractDocumentFromBlob(
   const container = getDefaultContainer();
   const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING || "";
 
-  // Try Python extractor first for binary document types (PDF, DOCX)
-  if (SUPPORTED_BINARY_TYPES.includes(fileType)) {
-    console.log(`[extractDocumentFromBlob] Entering Python extractor branch for: ${displayName}`);
-    console.log(`[extractDocumentFromBlob] fileType=${fileType}, hasConnectionString=${!!connectionString}`);
+  // Try Python extractor first for PDF and DOCX files (check both MIME type and extension)
+  const usePythonFirst = shouldUsePythonExtraction(fileType, fileName || displayName);
+
+  if (usePythonFirst) {
+    console.log(`[extractDocumentFromBlob] Python extraction branch entered for ${displayName}`);
+    console.log(`[extractDocumentFromBlob] fileType=${fileType}, extension=${extension}, hasConnectionString=${!!connectionString}`);
 
     if (!connectionString) {
-      console.log(
-        `[extractDocumentFromBlob] Skipping Python extractor: no Azure connection string configured`
-      );
-      console.log(`[extractDocumentFromBlob] Fallback reason: AZURE_STORAGE_CONNECTION_STRING not set`);
+      const reason = "AZURE_STORAGE_CONNECTION_STRING not set";
+      console.log(`[extractDocumentFromBlob] Python extraction failed for ${displayName}, fallback reason: ${reason}`);
+      warnings.push(`Python extractor failed for ${displayName}; fallback used`);
+    } else if (!process.env.PYTHON_EXTRACTOR_URL) {
+      const reason = "PYTHON_EXTRACTOR_URL not configured";
+      console.log(`[extractDocumentFromBlob] Python extraction failed for ${displayName}, fallback reason: ${reason}`);
+      warnings.push(`Python extractor failed for ${displayName}; fallback used`);
     } else {
       console.log(`[extractDocumentFromBlob] Calling Python extractor for: ${displayName}`);
 
@@ -131,9 +161,9 @@ export async function extractDocumentFromBlob(
         fileType,
       });
 
-      if (pythonResult.success) {
+      if (pythonResult.success && pythonResult.text && pythonResult.text.length > 0) {
         console.log(
-          `[extractDocumentFromBlob] Python extraction succeeded for: ${displayName} (${pythonResult.charactersProcessed} chars)`
+          `[extractDocumentFromBlob] Python extraction succeeded for ${displayName} (${pythonResult.charactersProcessed} chars)`
         );
         return {
           text: pythonResult.text,
@@ -142,16 +172,14 @@ export async function extractDocumentFromBlob(
         };
       }
 
-      // Python extraction failed, log warning and fallback to Node extraction
-      console.log(`[extractDocumentFromBlob] Entering fallback branch for: ${displayName}`);
-      console.log(`[extractDocumentFromBlob] Fallback reason: ${pythonResult.error}`);
-      const fallbackWarning = `Python extractor unavailable, fallback used for ${displayName}`;
-      console.warn(`[extractDocumentFromBlob] ${fallbackWarning}: ${pythonResult.error}`);
-      warnings.push(fallbackWarning);
+      // Python extraction failed or returned empty - log and fallback
+      const reason = pythonResult.error || "empty/invalid response";
+      console.log(`[extractDocumentFromBlob] Python extraction failed for ${displayName}, fallback reason: ${reason}`);
+      warnings.push(`Python extractor failed for ${displayName}; fallback used`);
     }
   } else {
     console.log(
-      `[extractDocumentFromBlob] Skipping Python extractor for non-binary type: ${fileType}`
+      `[extractDocumentFromBlob] Skipping Python extractor for non-binary type: ${fileType} (${displayName})`
     );
   }
 
@@ -161,48 +189,78 @@ export async function extractDocumentFromBlob(
   try {
     const result = await downloadBlob(container, blobPath);
     if (!result) {
+      warnings.push(`Fallback extraction failed for ${displayName}: could not download from storage`);
       return {
         text: "",
-        warnings: [`Failed to download ${displayName} from storage`],
+        warnings,
         charactersProcessed: 0,
       };
     }
     buffer = result.buffer;
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
     console.error("[extractDocumentFromBlob] Download error:", error);
+    warnings.push(`Fallback extraction failed for ${displayName}: ${errorMessage}`);
     return {
       text: "",
-      warnings: [
-        ...warnings,
-        `Error downloading ${displayName}: ${error instanceof Error ? error.message : "Unknown error"}`,
-      ],
+      warnings,
       charactersProcessed: 0,
     };
   }
 
-  // Extract text based on file type using Node.js
+  // Extract text based on file type using Node.js (with proper error handling)
+  const isPdf = fileType === "application/pdf" || extension === ".pdf";
+  const isDocx =
+    fileType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    extension === ".docx";
+
   try {
     let text: string;
 
     if (SUPPORTED_TEXT_TYPES.includes(fileType)) {
       // Plain text files
       text = buffer.toString("utf-8");
-    } else if (fileType === "application/pdf") {
-      // PDF extraction via Node
-      console.log(`[extractDocumentFromBlob] Using Node PDF extraction for: ${displayName}`);
-      text = await extractPdfText(buffer);
-    } else if (
-      fileType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    ) {
+    } else if (isPdf) {
+      // PDF extraction via Node (wrapped in try/catch to handle DOMMatrix and other errors)
+      console.log(`[extractDocumentFromBlob] Using Node PDF fallback extraction for: ${displayName}`);
+      try {
+        text = await extractPdfText(buffer);
+      } catch (pdfError) {
+        const pdfErrorMessage = pdfError instanceof Error ? pdfError.message : "Unknown PDF error";
+        console.error(`[extractDocumentFromBlob] Node PDF extraction failed for ${displayName}:`, pdfError);
+        warnings.push(`Fallback extraction failed for ${displayName}: ${pdfErrorMessage}`);
+        return {
+          text: "",
+          warnings,
+          charactersProcessed: 0,
+        };
+      }
+    } else if (isDocx) {
       // DOCX extraction via Node
-      console.log(`[extractDocumentFromBlob] Using Node DOCX extraction for: ${displayName}`);
-      text = await extractDocxText(buffer);
+      console.log(`[extractDocumentFromBlob] Using Node DOCX fallback extraction for: ${displayName}`);
+      try {
+        text = await extractDocxText(buffer);
+      } catch (docxError) {
+        const docxErrorMessage = docxError instanceof Error ? docxError.message : "Unknown DOCX error";
+        console.error(`[extractDocumentFromBlob] Node DOCX extraction failed for ${displayName}:`, docxError);
+        warnings.push(`Fallback extraction failed for ${displayName}: ${docxErrorMessage}`);
+        return {
+          text: "",
+          warnings,
+          charactersProcessed: 0,
+        };
+      }
     } else {
+      warnings.push(`Fallback extraction failed for ${displayName}: no extraction handler for file type ${fileType}`);
       return {
         text: "",
-        warnings: [...warnings, `No extraction handler for file type: ${fileType}`],
+        warnings,
         charactersProcessed: 0,
       };
+    }
+
+    if (text && text.length > 0) {
+      console.log(`[extractDocumentFromBlob] Fallback extraction succeeded for ${displayName} (${text.length} chars)`);
     }
 
     return {
@@ -211,13 +269,12 @@ export async function extractDocumentFromBlob(
       charactersProcessed: text.length,
     };
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
     console.error("[extractDocumentFromBlob] Extraction error:", error);
+    warnings.push(`Fallback extraction failed for ${displayName}: ${errorMessage}`);
     return {
       text: "",
-      warnings: [
-        ...warnings,
-        `Error extracting text from ${displayName}: ${error instanceof Error ? error.message : "Unknown error"}`,
-      ],
+      warnings,
       charactersProcessed: 0,
     };
   }
@@ -225,9 +282,22 @@ export async function extractDocumentFromBlob(
 
 /**
  * Checks if a file type is supported for extraction.
+ * Checks both MIME type and can be supplemented with extension check.
  */
-export function isFileTypeSupported(fileType: string): boolean {
-  return SUPPORTED_TEXT_TYPES.includes(fileType) || SUPPORTED_BINARY_TYPES.includes(fileType);
+export function isFileTypeSupported(fileType: string, fileName?: string): boolean {
+  if (SUPPORTED_TEXT_TYPES.includes(fileType) || SUPPORTED_BINARY_TYPES.includes(fileType)) {
+    return true;
+  }
+
+  // Also check extension for PDF/DOCX files that may have unexpected MIME types
+  if (fileName) {
+    const extension = extractExtension(fileName);
+    if (PYTHON_FIRST_EXTENSIONS.includes(extension)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /**
