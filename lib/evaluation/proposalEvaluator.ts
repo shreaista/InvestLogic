@@ -492,6 +492,9 @@ export async function runEvaluation(
           // Chunk-based processing stats
           proposalChunksUsed: extractedContent.proposalChunksUsed,
           mandateChunksUsed: extractedContent.mandateChunksUsed,
+          // Relevance matching metadata
+          matchedPairsCount: extractedContent.matchedPairsCount,
+          relevanceMethod: extractedContent.relevanceMethod,
           // RAG matching metadata
           matchedSectionsCount: ragEvalInput.matchedSectionsCount,
           topMandateSectionsPreview: ragEvalInput.topMandateSectionsPreview,
@@ -551,6 +554,9 @@ export async function runEvaluation(
           // Chunk-based processing stats
           proposalChunksUsed: extractedContent.proposalChunksUsed,
           mandateChunksUsed: extractedContent.mandateChunksUsed,
+          // Relevance matching metadata (even on fallback)
+          matchedPairsCount: extractedContent.matchedPairsCount,
+          relevanceMethod: extractedContent.relevanceMethod,
           // RAG matching metadata (even on fallback)
           matchedSectionsCount: ragEvalInput.matchedSectionsCount,
           topMandateSectionsPreview: ragEvalInput.topMandateSectionsPreview,

@@ -14,6 +14,7 @@ import "server-only";
 import { MAX_TOTAL_CHARS, MAX_CHARS_PER_DOC } from "./types";
 import {
   prepareChunkedEvaluationInputSafe,
+  prepareRelevanceMatchedEvaluationInputSafe,
   type DocumentInput as ChunkDocumentInput,
 } from "./chunking";
 
@@ -191,27 +192,32 @@ export function prepareDocumentInputs(
 
 /**
  * Prepares both mandate and proposal documents for evaluation.
- * Uses chunk-based processing for better content preservation.
+ * Uses relevance-matched chunk-based processing for better content selection.
  * Splits the character budget: 40% for mandate, 60% for proposal.
  *
  * @param mandateDocs Mandate template documents
  * @param proposalDocs Proposal documents
  * @param totalBudget Total character budget (default MAX_TOTAL_CHARS)
+ * @param useRelevanceMatching Whether to use relevance matching (default true)
  * @returns Combined prepared inputs for both document sets
  */
-export function prepareEvaluationInputs(
+export async function prepareEvaluationInputs(
   mandateDocs: DocumentInput[],
   proposalDocs: DocumentInput[],
-  totalBudget: number = MAX_TOTAL_CHARS
-): {
+  totalBudget: number = MAX_TOTAL_CHARS,
+  useRelevanceMatching: boolean = true
+): Promise<{
   mandateInput: PreparedInput;
   proposalInput: PreparedInput;
   totalStats: DocumentProcessingStats;
   allWarnings: string[];
-  // Chunk metadata (new)
+  // Chunk metadata
   proposalChunksUsed?: number;
   mandateChunksUsed?: number;
-} {
+  // Relevance matching metadata
+  matchedPairsCount?: number;
+  relevanceMethod?: string;
+}> {
   // Convert DocumentInput to ChunkDocumentInput format
   const toChunkInput = (doc: DocumentInput): ChunkDocumentInput => ({
     filename: doc.filename,
@@ -222,12 +228,31 @@ export function prepareEvaluationInputs(
     warning: doc.warning,
   });
 
-  // Use chunk-based preparation (safe wrapper handles errors)
-  const chunkedResult = prepareChunkedEvaluationInputSafe(
-    mandateDocs.map(toChunkInput),
-    proposalDocs.map(toChunkInput),
-    totalBudget
-  );
+  // Use relevance-matched preparation if enabled and we have both mandate and proposal docs
+  const hasContent =
+    mandateDocs.some((d) => !d.isPlaceholder && d.text) &&
+    proposalDocs.some((d) => !d.isPlaceholder && d.text);
+
+  let matchedPairsCount: number | undefined;
+  let relevanceMethod: string | undefined;
+
+  let chunkedResult;
+  if (useRelevanceMatching && hasContent) {
+    const relevanceResult = await prepareRelevanceMatchedEvaluationInputSafe(
+      mandateDocs.map(toChunkInput),
+      proposalDocs.map(toChunkInput),
+      totalBudget
+    );
+    chunkedResult = relevanceResult;
+    matchedPairsCount = relevanceResult.matchedPairsCount;
+    relevanceMethod = relevanceResult.relevanceMethod;
+  } else {
+    chunkedResult = prepareChunkedEvaluationInputSafe(
+      mandateDocs.map(toChunkInput),
+      proposalDocs.map(toChunkInput),
+      totalBudget
+    );
+  }
 
   // Build PreparedInput for mandate
   const mandateInput: PreparedInput = {
@@ -277,6 +302,8 @@ export function prepareEvaluationInputs(
     allWarnings: chunkedResult.warnings,
     proposalChunksUsed: chunkedResult.proposalChunksUsed,
     mandateChunksUsed: chunkedResult.mandateChunksUsed,
+    matchedPairsCount,
+    relevanceMethod,
   };
 }
 

@@ -40,6 +40,9 @@ export interface ExtractedContent {
   // Chunk metadata (optional for backwards compatibility)
   proposalChunksUsed?: number;
   mandateChunksUsed?: number;
+  // Relevance matching metadata (optional for backwards compatibility)
+  matchedPairsCount?: number;
+  relevanceMethod?: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -157,8 +160,8 @@ export async function extractContentForEvaluation(
     warning: r.warning,
   }));
 
-  // Use inputPreparation for smart prioritization and truncation
-  const prepared = prepareEvaluationInputs(mandateDocs, proposalDocs, MAX_TOTAL_CHARS);
+  // Use inputPreparation for smart prioritization, relevance matching, and truncation
+  const prepared = await prepareEvaluationInputs(mandateDocs, proposalDocs, MAX_TOTAL_CHARS);
 
   // Log final prepared content stats
   const totalChars =
@@ -179,6 +182,13 @@ export async function extractContentForEvaluation(
     );
   }
 
+  // Log relevance matching stats if available
+  if (prepared.matchedPairsCount !== undefined) {
+    console.log(
+      `[textExtraction] Relevance matching - ${prepared.matchedPairsCount} matched pairs, method: ${prepared.relevanceMethod ?? "unknown"}`
+    );
+  }
+
   if (prepared.allWarnings.length > 0) {
     console.log(`[textExtraction] All warnings: ${prepared.allWarnings.length}`);
   }
@@ -191,5 +201,7 @@ export async function extractContentForEvaluation(
     documentStats: prepared.totalStats,
     proposalChunksUsed: prepared.proposalChunksUsed,
     mandateChunksUsed: prepared.mandateChunksUsed,
+    matchedPairsCount: prepared.matchedPairsCount,
+    relevanceMethod: prepared.relevanceMethod,
   };
 }

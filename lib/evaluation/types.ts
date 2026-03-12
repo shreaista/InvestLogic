@@ -42,6 +42,9 @@ export const EvaluationReportSchema = z.object({
     // Chunk-based processing stats (optional for backwards compatibility)
     proposalChunksUsed: z.number().optional(),
     mandateChunksUsed: z.number().optional(),
+    // Relevance matching metadata (optional for backwards compatibility)
+    matchedPairsCount: z.number().optional(),
+    relevanceMethod: z.string().optional(),
     // RAG matching metadata (optional for backwards compatibility)
     matchedSectionsCount: z.number().optional(),
     topMandateSectionsPreview: z.string().optional(),

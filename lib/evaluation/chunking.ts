@@ -607,3 +607,120 @@ export function prepareChunkedEvaluationInputSafe(
     };
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Relevance-Matched Input Preparation
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface RelevanceMatchedEvaluationInput extends ChunkedEvaluationInput {
+  matchedPairsCount: number;
+  relevanceMethod: string;
+}
+
+/**
+ * Prepare evaluation input using relevance matching.
+ * Chunks documents, then matches proposal chunks to mandate chunks by keyword relevance.
+ *
+ * @param mandateDocs Mandate template documents
+ * @param proposalDocs Proposal documents
+ * @param totalBudget Total character budget
+ * @returns Combined text with relevance matching metadata
+ */
+export async function prepareRelevanceMatchedEvaluationInput(
+  mandateDocs: DocumentInput[],
+  proposalDocs: DocumentInput[],
+  totalBudget: number = DEFAULT_TOTAL_BUDGET
+): Promise<RelevanceMatchedEvaluationInput> {
+  console.log(
+    `[chunking] Starting relevance-matched input preparation: ${mandateDocs.length} mandate doc(s), ${proposalDocs.length} proposal doc(s), budget=${totalBudget}`
+  );
+
+  // Chunk mandate documents
+  const { chunkedDocs: mandateChunked, stats: mandateStats } =
+    chunkDocuments(mandateDocs);
+  console.log(
+    `[chunking] Mandate chunking: ${mandateStats.totalChunks} chunks from ${mandateStats.documentsWithChunks} doc(s)`
+  );
+
+  // Chunk proposal documents
+  const { chunkedDocs: proposalChunked, stats: proposalStats } =
+    chunkDocuments(proposalDocs);
+  console.log(
+    `[chunking] Proposal chunking: ${proposalStats.totalChunks} chunks from ${proposalStats.documentsWithChunks} doc(s)`
+  );
+
+  // Flatten chunks
+  const mandateChunks = mandateChunked.flatMap((d) => d.chunks);
+  const proposalChunks = proposalChunked.flatMap((d) => d.chunks);
+
+  // Import relevance matching dynamically to avoid circular deps
+  const { prepareRelevanceMatchedInputSafe } = await import("./relevanceMatching");
+
+  // Apply relevance matching
+  const matchedResult = prepareRelevanceMatchedInputSafe(
+    proposalChunks,
+    mandateChunks,
+    totalBudget,
+    {
+      processedDocumentsCount:
+        mandateStats.documentsWithChunks + proposalStats.documentsWithChunks,
+      truncatedDocumentsCount: 0,
+      skippedDocumentsCount:
+        mandateStats.skippedDocuments + proposalStats.skippedDocuments,
+    }
+  );
+
+  return {
+    mandateText: matchedResult.mandateText,
+    proposalText: matchedResult.proposalText,
+    mandateChunksUsed: matchedResult.mandateChunksUsed,
+    proposalChunksUsed: matchedResult.proposalChunksUsed,
+    processedDocumentsCount: matchedResult.processedDocumentsCount,
+    truncatedDocumentsCount: matchedResult.truncatedDocumentsCount,
+    skippedDocumentsCount: matchedResult.skippedDocumentsCount,
+    totalCharacters: matchedResult.totalCharacters,
+    warnings: matchedResult.warnings,
+    matchedPairsCount: matchedResult.matchedPairsCount,
+    relevanceMethod: matchedResult.relevanceMethod,
+  };
+}
+
+/**
+ * Safe wrapper for relevance-matched evaluation input preparation.
+ * Falls back to regular chunked input if relevance matching fails.
+ */
+export async function prepareRelevanceMatchedEvaluationInputSafe(
+  mandateDocs: DocumentInput[],
+  proposalDocs: DocumentInput[],
+  totalBudget: number = DEFAULT_TOTAL_BUDGET
+): Promise<RelevanceMatchedEvaluationInput> {
+  try {
+    return await prepareRelevanceMatchedEvaluationInput(
+      mandateDocs,
+      proposalDocs,
+      totalBudget
+    );
+  } catch (error) {
+    console.error(
+      "[chunking] Relevance matching failed, falling back to regular chunking:",
+      error
+    );
+
+    // Fallback to regular chunked input
+    const chunkedInput = prepareChunkedEvaluationInputSafe(
+      mandateDocs,
+      proposalDocs,
+      totalBudget
+    );
+
+    return {
+      ...chunkedInput,
+      matchedPairsCount: 0,
+      relevanceMethod: "fallback",
+      warnings: [
+        ...chunkedInput.warnings,
+        `Relevance matching failed, used chunked fallback: ${error instanceof Error ? error.message : "Unknown error"}`,
+      ],
+    };
+  }
+}
