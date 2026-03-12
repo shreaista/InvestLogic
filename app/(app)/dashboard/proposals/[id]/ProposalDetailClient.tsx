@@ -48,6 +48,7 @@ import {
   Info,
   Eye,
   FileOutput,
+  GitCompare,
 } from "lucide-react";
 import type { Proposal, ProposalStatus } from "@/lib/mock/proposals";
 import {
@@ -155,6 +156,13 @@ interface MemoMetadata {
   format: "pdf" | "text";
   versionNumber?: number;
   isLatest?: boolean;
+}
+
+interface SimilarDeal {
+  proposalId: string;
+  fitScore: number | null;
+  similarityScore: number;
+  summary: string;
 }
 
 // NEW: Types for proposal documents
@@ -599,6 +607,36 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
       "_blank"
     );
   };
+
+  // Similar Deals state
+  const [similarDeals, setSimilarDeals] = useState<SimilarDeal[]>([]);
+  const [similarDealsLoading, setSimilarDealsLoading] = useState(false);
+
+  const loadSimilarDeals = useCallback(async (proposalId?: string) => {
+    const id = proposalId || proposal?.id;
+    if (!id || !displayedEvaluation) return;
+    setSimilarDealsLoading(true);
+    try {
+      const res = await fetch(`/api/proposals/${id}/similar`);
+      const data = await res.json();
+      if (data.ok && data.data.similar) {
+        setSimilarDeals(data.data.similar);
+      } else {
+        setSimilarDeals([]);
+      }
+    } catch {
+      setSimilarDeals([]);
+    }
+    setSimilarDealsLoading(false);
+  }, [proposal?.id, displayedEvaluation]);
+
+  useEffect(() => {
+    if (displayedEvaluation && proposal?.id) {
+      queueMicrotask(() => { loadSimilarDeals(proposal.id); });
+    } else {
+      queueMicrotask(() => { setSimilarDeals([]); });
+    }
+  }, [displayedEvaluation, proposal?.id, loadSimilarDeals]);
 
   // View a specific evaluation (load it into the main panel)
   const handleViewEvaluation = async (blobPath: string, isLatest: boolean = false) => {
@@ -1373,7 +1411,12 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
               variant="outline"
               size="sm"
               onClick={async () => {
-                await Promise.all([loadEvaluations(), loadDocuments(), loadMemos()]);
+                await Promise.all([
+                  loadEvaluations(),
+                  loadDocuments(),
+                  loadMemos(),
+                  displayedEvaluation ? loadSimilarDeals() : Promise.resolve(),
+                ]);
               }}
               disabled={evaluationsLoading || loading}
             >
@@ -1925,6 +1968,60 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
                 </Table>
               </div>
             )}
+
+            {/* Similar Deals */}
+            <div className="border-t">
+              <div className="px-5 py-3 bg-muted/5">
+                <div className="flex items-center gap-2">
+                  <GitCompare className="h-4 w-4 text-muted-foreground" />
+                  <p className="text-sm font-medium">Similar Deals</p>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Previously evaluated proposals with similar mandate fit and characteristics.
+                </p>
+              </div>
+              {similarDealsLoading ? (
+                <div className="px-5 py-4 flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading similar deals...
+                </div>
+              ) : similarDeals.length === 0 ? (
+                <div className="px-5 py-4 text-sm text-muted-foreground">
+                  No similar deals found. Run evaluations on more proposals to see comparisons.
+                </div>
+              ) : (
+                <div className="divide-y">
+                  {similarDeals.map((deal) => (
+                    <div
+                      key={deal.proposalId}
+                      className="px-5 py-3 flex items-start justify-between gap-4 hover:bg-muted/20"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Link
+                            href={`/dashboard/proposals/${deal.proposalId}`}
+                            className="font-mono text-sm font-medium text-indigo-600 hover:underline"
+                          >
+                            {deal.proposalId}
+                          </Link>
+                          {deal.fitScore !== null && (
+                            <span className={`text-sm font-semibold ${getScoreColor(deal.fitScore)}`}>
+                              {deal.fitScore}
+                            </span>
+                          )}
+                          <span className="text-xs text-muted-foreground">
+                            {Math.round(deal.similarityScore * 100)}% similar
+                          </span>
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                          {deal.summary}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         ) : (
           <div className="p-6">
