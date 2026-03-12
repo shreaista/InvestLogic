@@ -9,7 +9,25 @@ import { z } from "zod";
 // Zod Schemas
 // ─────────────────────────────────────────────────────────────────────────────
 
-// NEW: Schema for LLM response validation
+// Scoring input from LLM for structured scoring
+export const ScoringInputSchema = z.object({
+  sectorMatch: z.enum(["full", "partial", "none", "unknown"]),
+  geographyMatch: z.enum(["full", "partial", "none", "unknown"]),
+  stageMatch: z.enum(["full", "partial", "none", "unknown"]),
+  ticketSizeMatch: z.enum(["full", "partial", "none", "unknown"]),
+  identifiedRisks: z.array(z.string()),
+});
+
+// Structured scores computed from scoring input
+export const StructuredScoresSchema = z.object({
+  sectorFit: z.number().min(0).max(25),
+  geographyFit: z.number().min(0).max(20),
+  stageFit: z.number().min(0).max(15),
+  ticketSizeFit: z.number().min(0).max(15),
+  riskAdjustment: z.number().min(-20).max(0),
+});
+
+// NEW: Schema for LLM response validation (includes scoring input)
 export const LLMEvaluationResponseSchema = z.object({
   fitScore: z.number().min(0).max(100),
   mandateSummary: z.string().min(1),
@@ -18,6 +36,8 @@ export const LLMEvaluationResponseSchema = z.object({
   risks: z.array(z.string()).min(1).max(10),
   recommendations: z.array(z.string()).min(1).max(10),
   confidence: z.enum(["low", "medium", "high"]),
+  // Structured scoring input (optional for backward compatibility)
+  scoringInput: ScoringInputSchema.optional(),
 });
 
 // NEW: Full evaluation report schema (includes metadata)
@@ -57,6 +77,10 @@ export const EvaluationReportSchema = z.object({
   risks: z.array(z.string()),
   recommendations: z.array(z.string()),
   confidence: z.enum(["low", "medium", "high"]),
+
+  // Structured scoring (optional for backward compatibility)
+  structuredScores: StructuredScoresSchema.optional(),
+  scoringMethod: z.enum(["structured", "fallback"]).optional(),
 
   model: z.string(),
   version: z.string(),

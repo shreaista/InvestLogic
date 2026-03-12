@@ -47,6 +47,7 @@ import {
   ShieldCheck,
   Info,
   Eye,
+  FileOutput,
 } from "lucide-react";
 import type { Proposal, ProposalStatus } from "@/lib/mock/proposals";
 import {
@@ -95,6 +96,15 @@ interface MandateData {
   templateFiles: MandateTemplateFile[];
 }
 
+// Types for structured scoring
+interface StructuredScores {
+  sectorFit: number; // 0 to 25
+  geographyFit: number; // 0 to 20
+  stageFit: number; // 0 to 15
+  ticketSizeFit: number; // 0 to 15
+  riskAdjustment: number; // -20 to 0
+}
+
 // Types for evaluation
 interface EvaluationReport {
   evaluationId: string;
@@ -118,6 +128,9 @@ interface EvaluationReport {
     skippedDocumentsCount?: number;
   };
   engineType: "stub" | "llm" | "azure-openai";
+  // Structured scoring (optional for backward compatibility)
+  structuredScores?: StructuredScores;
+  scoringMethod?: "structured" | "fallback";
 }
 
 interface EvaluationMetadata {
@@ -497,6 +510,66 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
     if (!proposal) return;
     window.open(
       `/api/proposals/${proposal.id}/evaluations/download?blobPath=${encodeURIComponent(blobPath)}`,
+      "_blank"
+    );
+  };
+
+  // Memo generation state
+  const [generatingMemo, setGeneratingMemo] = useState(false);
+  const [latestMemoPath, setLatestMemoPath] = useState<string | null>(null);
+  const [memoMessage, setMemoMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
+
+  // Load memos on mount
+  useEffect(() => {
+    const loadMemos = async () => {
+      if (!proposal?.id) return;
+      try {
+        const res = await fetch(`/api/proposals/${proposal.id}/memo`);
+        const data = await res.json();
+        if (data.ok && data.data.memos.length > 0) {
+          setLatestMemoPath(data.data.memos[0].blobPath);
+        }
+      } catch {
+        console.error("Failed to load memos");
+      }
+    };
+    loadMemos();
+  }, [proposal?.id]);
+
+  // Generate investment memo
+  const handleGenerateMemo = async () => {
+    if (!proposal) return;
+    setGeneratingMemo(true);
+    setMemoMessage(null);
+
+    try {
+      const res = await fetch(`/api/proposals/${proposal.id}/memo`, {
+        method: "POST",
+      });
+
+      const data = await res.json();
+
+      if (data.ok) {
+        setLatestMemoPath(data.data.blobPath);
+        setMemoMessage({
+          text: "Investment memo generated successfully",
+          type: "success",
+        });
+      } else {
+        setMemoMessage({ text: data.error || "Failed to generate memo", type: "error" });
+      }
+    } catch {
+      setMemoMessage({ text: "Network error during memo generation", type: "error" });
+    }
+
+    setGeneratingMemo(false);
+  };
+
+  // Download memo
+  const handleDownloadMemo = () => {
+    if (!proposal || !latestMemoPath) return;
+    window.open(
+      `/api/proposals/${proposal.id}/memo?blobPath=${encodeURIComponent(latestMemoPath)}`,
       "_blank"
     );
   };
@@ -1298,10 +1371,51 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
               )}
               Run Evaluation
             </Button>
+            {/* Memo Generation Buttons */}
+            {displayedEvaluation && (
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleGenerateMemo}
+                  disabled={generatingMemo}
+                  className="border-amber-300 text-amber-700 hover:bg-amber-50"
+                >
+                  {generatingMemo ? (
+                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  ) : (
+                    <FileOutput className="h-4 w-4 mr-1" />
+                  )}
+                  Generate Memo
+                </Button>
+                {latestMemoPath && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleDownloadMemo}
+                    className="border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                  >
+                    <Download className="h-4 w-4 mr-1" />
+                    Download Memo
+                  </Button>
+                )}
+              </>
+            )}
           </div>
         }
         noPadding
       >
+        {/* Memo status message */}
+        {memoMessage && (
+          <div className={`px-6 py-3 text-sm border-b ${
+            memoMessage.type === "success"
+              ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+              : "bg-red-50 text-red-700 border-red-100"
+          }`}>
+            {memoMessage.text}
+          </div>
+        )}
+
         {/* Status message */}
         {evaluationMessage && (
           <div className={`px-6 py-3 text-sm border-b ${
@@ -1466,6 +1580,114 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
                 </div>
               </div>
             </div>
+
+            {/* Structured Scores Section */}
+            {displayedEvaluation.structuredScores && (
+              <div className="p-5 border-b bg-muted/10">
+                <div className="flex items-center gap-2 mb-4">
+                  <Target className="h-4 w-4 text-indigo-600" />
+                  <p className="text-sm font-medium">Score Breakdown</p>
+                  {displayedEvaluation.scoringMethod && (
+                    <span className={`text-xs px-2 py-0.5 rounded ${
+                      displayedEvaluation.scoringMethod === "structured" 
+                        ? "bg-emerald-100 text-emerald-700" 
+                        : "bg-amber-100 text-amber-700"
+                    }`}>
+                      {displayedEvaluation.scoringMethod === "structured" ? "AI-Scored" : "Estimated"}
+                    </span>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                  {/* Sector Fit */}
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Sector Fit</p>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-indigo-500 rounded-full transition-all"
+                          style={{ width: `${(displayedEvaluation.structuredScores.sectorFit / 25) * 100}%` }}
+                        />
+                      </div>
+                      <span className="text-sm font-medium tabular-nums w-12 text-right">
+                        {displayedEvaluation.structuredScores.sectorFit}/25
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* Geography Fit */}
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Geography Fit</p>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-indigo-500 rounded-full transition-all"
+                          style={{ width: `${(displayedEvaluation.structuredScores.geographyFit / 20) * 100}%` }}
+                        />
+                      </div>
+                      <span className="text-sm font-medium tabular-nums w-12 text-right">
+                        {displayedEvaluation.structuredScores.geographyFit}/20
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* Stage Fit */}
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Stage Fit</p>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-indigo-500 rounded-full transition-all"
+                          style={{ width: `${(displayedEvaluation.structuredScores.stageFit / 15) * 100}%` }}
+                        />
+                      </div>
+                      <span className="text-sm font-medium tabular-nums w-12 text-right">
+                        {displayedEvaluation.structuredScores.stageFit}/15
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* Ticket Size Fit */}
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Ticket Size Fit</p>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-indigo-500 rounded-full transition-all"
+                          style={{ width: `${(displayedEvaluation.structuredScores.ticketSizeFit / 15) * 100}%` }}
+                        />
+                      </div>
+                      <span className="text-sm font-medium tabular-nums w-12 text-right">
+                        {displayedEvaluation.structuredScores.ticketSizeFit}/15
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* Risk Adjustment */}
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Risk Adjustment</p>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div 
+                          className={`h-full rounded-full transition-all ${
+                            displayedEvaluation.structuredScores.riskAdjustment === 0 
+                              ? "bg-emerald-500" 
+                              : displayedEvaluation.structuredScores.riskAdjustment >= -10 
+                                ? "bg-amber-500" 
+                                : "bg-red-500"
+                          }`}
+                          style={{ width: `${((20 + displayedEvaluation.structuredScores.riskAdjustment) / 20) * 100}%` }}
+                        />
+                      </div>
+                      <span className={`text-sm font-medium tabular-nums w-12 text-right ${
+                        displayedEvaluation.structuredScores.riskAdjustment < 0 ? "text-red-600" : "text-emerald-600"
+                      }`}>
+                        {displayedEvaluation.structuredScores.riskAdjustment}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Summaries */}
             <div className="grid md:grid-cols-2 gap-4 p-5 border-b">

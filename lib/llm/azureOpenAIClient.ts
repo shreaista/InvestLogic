@@ -158,8 +158,21 @@ Respond with a JSON object matching this exact schema:
   "strengths": ["<strength 1>", "<strength 2>", ...],
   "risks": ["<risk 1>", "<risk 2>", ...],
   "recommendations": ["<recommendation 1>", "<recommendation 2>", ...],
-  "confidence": "<'low' | 'medium' | 'high' - based on information quality>"
+  "confidence": "<'low' | 'medium' | 'high' - based on information quality>",
+  "scoringInput": {
+    "sectorMatch": "<'full' | 'partial' | 'none' | 'unknown' - how well proposal sector matches mandate>",
+    "geographyMatch": "<'full' | 'partial' | 'none' | 'unknown' - how well proposal geography matches mandate>",
+    "stageMatch": "<'full' | 'partial' | 'none' | 'unknown' - how well investment stage matches mandate>",
+    "ticketSizeMatch": "<'full' | 'partial' | 'none' | 'unknown' - how well requested amount matches mandate range>",
+    "identifiedRisks": ["<key risk 1>", "<key risk 2>", ... - main risks affecting fit]
+  }
 }
+
+Scoring guide:
+- sectorMatch: 'full' if exact sector match, 'partial' if related sector, 'none' if mismatch, 'unknown' if unclear
+- geographyMatch: 'full' if exact geographic match, 'partial' if overlapping region, 'none' if outside mandate, 'unknown' if unclear
+- stageMatch: 'full' if exact stage match (seed, series A, etc.), 'partial' if adjacent stage, 'none' if mismatch, 'unknown' if unclear
+- ticketSizeMatch: 'full' if within mandate range, 'partial' if close to range, 'none' if far outside, 'unknown' if amount unclear
 
 Respond with ONLY the JSON object, no markdown formatting or additional text.`;
 }
@@ -175,7 +188,14 @@ Please fix the JSON and respond with ONLY a valid JSON object matching this sche
   "strengths": ["<string>", ...],
   "risks": ["<string>", ...],
   "recommendations": ["<string>", ...],
-  "confidence": "<'low' | 'medium' | 'high'>"
+  "confidence": "<'low' | 'medium' | 'high'>",
+  "scoringInput": {
+    "sectorMatch": "<'full' | 'partial' | 'none' | 'unknown'>",
+    "geographyMatch": "<'full' | 'partial' | 'none' | 'unknown'>",
+    "stageMatch": "<'full' | 'partial' | 'none' | 'unknown'>",
+    "ticketSizeMatch": "<'full' | 'partial' | 'none' | 'unknown'>",
+    "identifiedRisks": ["<string>", ...]
+  }
 }
 
 Your previous response was:

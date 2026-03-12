@@ -31,6 +31,12 @@ import {
 } from "./textExtraction";
 import { buildRAGEvaluationInput } from "./textChunking";
 import { type EvaluationReport } from "./types";
+import {
+  parseScoringInput,
+  computeScoringSafe,
+  createFallbackScoring,
+  type ScoringResult,
+} from "./scoringModel";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Re-export Types
@@ -471,6 +477,22 @@ export async function runEvaluation(
       // engineType is "azure-openai" when using Azure, "llm" for standard OpenAI
       const engineType = llmResult.provider === "azure-openai" ? "azure-openai" : "llm";
 
+      // Parse scoring input from LLM response and compute structured scores
+      const scoringInput = parseScoringInput(llmResult.response.scoringInput);
+      const scoringResult: ScoringResult = computeScoringSafe(
+        scoringInput,
+        llmResult.response.fitScore
+      );
+
+      // Use structured final score if structured scoring succeeded, otherwise use LLM score
+      const finalScore = scoringResult.scoringMethod === "structured"
+        ? scoringResult.finalScore
+        : llmResult.response.fitScore;
+
+      console.log(
+        `[proposalEvaluator] Scoring complete: method=${scoringResult.scoringMethod}, finalScore=${finalScore}`
+      );
+
       report = {
         evaluationId,
         proposalId,
@@ -500,13 +522,17 @@ export async function runEvaluation(
           topMandateSectionsPreview: ragEvalInput.topMandateSectionsPreview,
         },
 
-        fitScore: llmResult.response.fitScore,
+        fitScore: finalScore,
         mandateSummary: llmResult.response.mandateSummary,
         proposalSummary: llmResult.response.proposalSummary,
         strengths: llmResult.response.strengths,
         risks: llmResult.response.risks,
         recommendations: llmResult.response.recommendations,
         confidence: llmResult.response.confidence,
+
+        // Structured scoring
+        structuredScores: scoringResult.structuredScores,
+        scoringMethod: scoringResult.scoringMethod,
 
         model: llmResult.model,
         version: "2.0.0",
@@ -532,6 +558,11 @@ export async function runEvaluation(
           ? `Azure OpenAI call failed: ${llmResult.error}`
           : `OpenAI call failed: ${llmResult.error}`
       );
+
+      // Create fallback scoring from stub fit score
+      const fallbackScoring = stubResult.fitScore !== null
+        ? createFallbackScoring(stubResult.fitScore)
+        : createFallbackScoring(50); // Default mid-range score for null
 
       report = {
         evaluationId,
@@ -570,6 +601,10 @@ export async function runEvaluation(
         recommendations: stubResult.recommendations,
         confidence: stubResult.confidence,
 
+        // Structured scoring (fallback)
+        structuredScores: fallbackScoring.structuredScores,
+        scoringMethod: fallbackScoring.scoringMethod,
+
         model: "stub-fallback",
         version: "2.0.0",
         engineType: "stub",
@@ -591,6 +626,11 @@ export async function runEvaluation(
       stubExtractionWarnings.push(mandateLoadFallbackReason);
     }
     stubExtractionWarnings.push("No LLM provider configured (set AZURE_OPENAI_* or OPENAI_API_KEY) - using stub evaluation");
+
+    // Create fallback scoring from stub fit score
+    const fallbackScoring = stubResult.fitScore !== null
+      ? createFallbackScoring(stubResult.fitScore)
+      : createFallbackScoring(50); // Default mid-range score for null
 
     report = {
       evaluationId,
@@ -619,6 +659,10 @@ export async function runEvaluation(
       risks: stubResult.risks,
       recommendations: stubResult.recommendations,
       confidence: stubResult.confidence,
+
+      // Structured scoring (fallback)
+      structuredScores: fallbackScoring.structuredScores,
+      scoringMethod: fallbackScoring.scoringMethod,
 
       model: "stub",
       version: "2.0.0",
