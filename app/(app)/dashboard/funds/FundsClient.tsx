@@ -139,10 +139,14 @@ async function fetchFunds(): Promise<{ ok: boolean; funds?: Fund[]; error?: stri
     const res = await fetch("/api/tenant/funds", { credentials: "include" });
     const data = await res.json();
     if (data.ok && Array.isArray(data.data?.funds)) {
+      console.log("[Funds] List reload success, count:", data.data.funds.length);
       return { ok: true, funds: data.data.funds };
     }
-    return { ok: false, error: data.error || "Failed to load funds" };
-  } catch {
+    const errMsg = data.error || "Failed to load funds";
+    console.error("[Funds] List reload failed:", res.status, errMsg);
+    return { ok: false, error: errMsg };
+  } catch (err) {
+    console.error("[Funds] List reload network error:", err);
     return { ok: false, error: "Network error" };
   }
 }
@@ -172,6 +176,7 @@ export default function FundsClient({ funds: initialFunds, fundMandatesEnabled, 
   const [, startTransition] = useTransition();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [newFund, setNewFund] = useState({ name: "", code: "" });
+  const [createFundError, setCreateFundError] = useState<string | null>(null);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [uploadMessage, setUploadMessage] = useState<{ id: string; message: string; type: "success" | "error" } | null>(null);
   const [expandedVersions, setExpandedVersions] = useState<Set<string>>(new Set());
@@ -276,22 +281,39 @@ export default function FundsClient({ funds: initialFunds, fundMandatesEnabled, 
   };
 
   const handleCreateFund = async () => {
-    if (!newFund.name.trim()) return;
-    console.log("[Funds] Create fund requested:", { name: newFund.name, code: newFund.code || "(none)" });
+    setCreateFundError(null);
+    if (!newFund.name.trim()) {
+      setCreateFundError("Fund name is required");
+      return;
+    }
+    const payload = { name: newFund.name.trim(), code: newFund.code?.trim() || undefined };
+    console.log("[Funds] Create fund clicked, payload:", payload);
     setIsSubmitting(true);
     try {
       const res = await fetch("/api/tenant/funds", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify(newFund),
+        body: JSON.stringify(payload),
       });
-      const data = await res.json();
+      console.log("[Funds] API response status:", res.status, res.statusText);
+      let data: { ok?: boolean; data?: { fund?: Fund }; error?: string } = {};
+      try {
+        data = await res.json();
+      } catch (parseErr) {
+        console.error("[Funds] Failed to parse API response:", parseErr);
+        const errMsg = res.status >= 400 ? `Server error (${res.status})` : "Invalid response from server";
+        setCreateFundError(errMsg);
+        toast(errMsg, "error");
+        setIsSubmitting(false);
+        return;
+      }
       if (data.ok && data.data?.fund) {
         const created = data.data.fund;
         console.log("[Funds] Create fund success:", { id: created.id, name: created.name });
         setIsCreateFundOpen(false);
         setNewFund({ name: "", code: "" });
+        setCreateFundError(null);
         setFunds((prev) => [...prev, created]);
         const listOk = await loadFunds();
         if (!listOk) {
@@ -304,11 +326,14 @@ export default function FundsClient({ funds: initialFunds, fundMandatesEnabled, 
       } else {
         const errMsg = data.error || "Failed to create fund";
         console.error("[Funds] Create fund failure:", errMsg);
+        setCreateFundError(errMsg);
         toast(errMsg, "error");
       }
     } catch (err) {
       console.error("[Funds] Create fund network error:", err);
-      toast("Network error", "error");
+      const errMsg = err instanceof Error ? err.message : "Network error";
+      setCreateFundError(errMsg);
+      toast(errMsg, "error");
     }
     setIsSubmitting(false);
   };
@@ -453,7 +478,13 @@ export default function FundsClient({ funds: initialFunds, fundMandatesEnabled, 
           subtitle="Manage funding sources and allocations"
         actions={
           activeTab === "funds" ? (
-            <Dialog open={isCreateFundOpen} onOpenChange={setIsCreateFundOpen}>
+            <Dialog
+              open={isCreateFundOpen}
+              onOpenChange={(open) => {
+                setIsCreateFundOpen(open);
+                if (!open) setCreateFundError(null);
+              }}
+            >
               <DialogTrigger asChild>
                 <Button>
                   <Plus className="h-4 w-4 mr-2" />
@@ -473,8 +504,12 @@ export default function FundsClient({ funds: initialFunds, fundMandatesEnabled, 
                     <Input
                       id="fundName"
                       value={newFund.name}
-                      onChange={(e) => setNewFund({ ...newFund, name: e.target.value })}
+                      onChange={(e) => {
+                        setNewFund({ ...newFund, name: e.target.value });
+                        if (createFundError) setCreateFundError(null);
+                      }}
                       placeholder="e.g., General Fund 2026"
+                      className={createFundError ? "border-destructive" : ""}
                     />
                   </div>
                   <div className="grid gap-2">
@@ -486,6 +521,12 @@ export default function FundsClient({ funds: initialFunds, fundMandatesEnabled, 
                       placeholder="e.g., GF26"
                     />
                   </div>
+                  {createFundError && (
+                    <p className="text-sm text-destructive flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4 shrink-0" />
+                      {createFundError}
+                    </p>
+                  )}
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setIsCreateFundOpen(false)}>

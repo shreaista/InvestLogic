@@ -1,24 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthzContext, jsonError, AuthzHttpError } from "@/lib/authz";
-import { requireActiveTenantId } from "@/lib/tenantContext";
+import {
+  requireSession,
+  requireUserRole,
+  requireTenant,
+  jsonError,
+  AuthzHttpError,
+} from "@/lib/authz";
 import { listFunds, createFund, type CreateFundInput } from "@/lib/mock/fundsStore";
 
 export async function GET() {
   try {
-    const ctx = await getAuthzContext();
-
-    if (!ctx.user) {
-      return NextResponse.json(
-        { ok: false, error: "Authentication required" },
-        { status: 401 }
-      );
-    }
-
-    const tenantId = await requireActiveTenantId();
-
-    if (ctx.role !== "tenant_admin" && ctx.role !== "saas_admin") {
-      throw new AuthzHttpError(403, "Only administrators can manage funds");
-    }
+    const user = await requireSession();
+    requireUserRole(user, ["tenant_admin", "saas_admin"]);
+    const tenantId = requireTenant(user);
 
     const funds = listFunds(tenantId);
 
@@ -33,20 +27,9 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const ctx = await getAuthzContext();
-
-    if (!ctx.user) {
-      return NextResponse.json(
-        { ok: false, error: "Authentication required" },
-        { status: 401 }
-      );
-    }
-
-    const tenantId = await requireActiveTenantId();
-
-    if (ctx.role !== "tenant_admin" && ctx.role !== "saas_admin") {
-      throw new AuthzHttpError(403, "Only administrators can create funds");
-    }
+    const user = await requireSession();
+    requireUserRole(user, ["tenant_admin", "saas_admin"]);
+    const tenantId = requireTenant(user);
 
     const body: CreateFundInput = await request.json();
     console.log("[Funds API] Create fund requested:", { name: body.name, code: body.code, tenantId });
