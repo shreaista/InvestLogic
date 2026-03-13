@@ -8,6 +8,9 @@ import {
 } from "@/lib/authz";
 import { listQueuesWithMemberCountForTenant, createQueue } from "@/lib/mock/queues";
 import { logAudit } from "@/lib/audit";
+import { productionMode } from "@/lib/config/productionMode";
+
+const SEED_QUEUE_IDS = ["queue-default", "queue-high-priority", "queue-healthcare"];
 
 export async function GET(request: NextRequest) {
   try {
@@ -18,7 +21,10 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const includeInactive = searchParams.get("includeInactive") === "true";
 
-    const queues = listQueuesWithMemberCountForTenant(tenantId, includeInactive);
+    let queues = listQueuesWithMemberCountForTenant(tenantId, includeInactive);
+    if (productionMode) {
+      queues = queues.filter((q) => !SEED_QUEUE_IDS.includes(q.id));
+    }
 
     return NextResponse.json({
       ok: true,

@@ -10,6 +10,9 @@ import {
 } from "@/lib/authz";
 import { logAdminAction } from "@/lib/rbac";
 import { assertCanCreateAssessor, isEntitlementError } from "@/lib/entitlements";
+import { productionMode } from "@/lib/config/productionMode";
+
+const SEED_USER_IDS = ["user-001", "user-002", "user-003"];
 
 const mockUsers = [
   { id: "user-001", email: "admin@acme.org", name: "Admin User", role: "tenant_admin", tenantId: "tenant-001" },
@@ -24,7 +27,10 @@ export async function GET() {
     requireRBACPermission(session, RBAC_PERMISSIONS.USER_READ);
     const tenantId = requireTenant(session);
 
-    const users = mockUsers.filter((u) => u.tenantId === tenantId);
+    let users = mockUsers.filter((u) => u.tenantId === tenantId);
+    if (productionMode) {
+      users = users.filter((u) => !SEED_USER_IDS.includes(u.id));
+    }
 
     return NextResponse.json({ ok: true, data: { users } });
   } catch (error) {

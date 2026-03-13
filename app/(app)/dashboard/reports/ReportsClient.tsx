@@ -26,16 +26,17 @@ import { LucideIcon } from "lucide-react";
 
 interface ReportsClientProps {
   role?: "saas_admin" | "tenant_admin" | "assessor";
+  productionMode?: boolean;
 }
 
-export default function ReportsClient({ role }: ReportsClientProps) {
+export default function ReportsClient({ role, productionMode }: ReportsClientProps) {
   if (role === "saas_admin") {
-    return <SaaSAdminReports />;
+    return <SaaSAdminReports productionMode={productionMode} />;
   }
   if (role === "tenant_admin") {
-    return <TenantReports />;
+    return <TenantReports productionMode={productionMode} />;
   }
-  return <AssessorReports />;
+  return <AssessorReports productionMode={productionMode} />;
 }
 
 interface Report {
@@ -49,8 +50,8 @@ interface Report {
   icon: LucideIcon;
 }
 
-function SaaSAdminReports() {
-  const reports: Report[] = [
+function SaaSAdminReports({ productionMode }: { productionMode?: boolean }) {
+  const allReports: Report[] = [
     { id: "r-001", title: "Monthly Usage Summary", description: "Comprehensive overview of platform usage metrics across all tenants", type: "Usage", format: "PDF", generated: "Mar 1, 2026", size: "2.4 MB", icon: BarChart3 },
     { id: "r-002", title: "Tenant Activity Report", description: "Detailed breakdown of user activity and engagement per tenant", type: "Activity", format: "Excel", generated: "Mar 1, 2026", size: "1.8 MB", icon: Users },
     { id: "r-003", title: "Cost Allocation Report", description: "LLM costs and resource usage attributed to each tenant", type: "Financial", format: "PDF", generated: "Feb 28, 2026", size: "3.1 MB", icon: DollarSign },
@@ -58,6 +59,8 @@ function SaaSAdminReports() {
     { id: "r-005", title: "API Response Latency", description: "LLM provider response times and availability metrics", type: "Technical", format: "CSV", generated: "Feb 27, 2026", size: "856 KB", icon: Clock },
     { id: "r-006", title: "Subscription Audit Log", description: "Complete audit trail of subscription changes", type: "Audit", format: "PDF", generated: "Feb 25, 2026", size: "4.2 MB", icon: FileText },
   ];
+
+  const reports = productionMode ? [] : allReports;
 
   const typeVariants: Record<string, "default" | "info" | "success" | "warning" | "muted"> = {
     Usage: "default",
@@ -74,31 +77,47 @@ function SaaSAdminReports() {
         title="Reports"
         subtitle="Download and manage platform reports"
         actions={
-          <Button>
-            <Calendar className="h-4 w-4 mr-2" />
-            Schedule Report
-          </Button>
+          !productionMode && (
+            <Button>
+              <Calendar className="h-4 w-4 mr-2" />
+              Schedule Report
+            </Button>
+          )
         }
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {reports.map((report) => (
-          <ReportCard key={report.id} report={report} typeVariants={typeVariants} />
-        ))}
-      </div>
+      {reports.length === 0 ? (
+        <div className="rounded-lg border border-dashed p-12 text-center text-muted-foreground">
+          <FileText className="h-12 w-12 mx-auto mb-3 opacity-50" />
+          <p className="font-medium">No reports available</p>
+          <p className="text-sm mt-1">Advanced analytics reports are not configured yet.</p>
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {reports.map((report) => (
+            <ReportCard key={report.id} report={report} typeVariants={typeVariants} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-function TenantReports() {
-  const reports: Report[] = [
-    { id: "r-101", title: "Proposal Status Summary", description: "Overview of all proposals by status, fund, and assessor", type: "Proposals", format: "PDF", generated: "Mar 1, 2026", size: "1.2 MB", icon: FileText },
+const TENANT_ADVANCED_REPORT_IDS = ["r-102", "r-103", "r-104", "r-106"]; // Fund Allocation, Assessor Performance, Monthly Activity Log, Usage & Cost
+
+function TenantReports({ productionMode }: { productionMode?: boolean }) {
+  const allReports: Report[] = [
+    { id: "r-101", title: "Proposal Evaluation Reports", description: "Overview of all proposals by status, fund, and assessor", type: "Proposals", format: "PDF", generated: "Mar 1, 2026", size: "1.2 MB", icon: FileText },
     { id: "r-102", title: "Fund Allocation Report", description: "Detailed breakdown of fund usage and remaining capacity", type: "Funds", format: "Excel", generated: "Mar 1, 2026", size: "890 KB", icon: Wallet },
     { id: "r-103", title: "Assessor Performance", description: "Assessment completion rates and review times by assessor", type: "Performance", format: "PDF", generated: "Feb 28, 2026", size: "1.5 MB", icon: Users },
     { id: "r-104", title: "Monthly Activity Log", description: "Complete audit trail of user actions and system events", type: "Audit", format: "CSV", generated: "Feb 28, 2026", size: "2.1 MB", icon: Clock },
-    { id: "r-105", title: "Approved Proposals", description: "Summary of all approved proposals with funding details", type: "Proposals", format: "PDF", generated: "Feb 25, 2026", size: "3.4 MB", icon: FileCheck },
+    { id: "r-105", title: "Generated Investment Reports", description: "Summary of all approved proposals with funding details", type: "Proposals", format: "PDF", generated: "Feb 25, 2026", size: "3.4 MB", icon: FileCheck },
     { id: "r-106", title: "Usage & Cost Report", description: "LLM usage breakdown and cost attribution", type: "Costs", format: "PDF", generated: "Feb 25, 2026", size: "780 KB", icon: DollarSign },
   ];
+
+  const reports = productionMode
+    ? allReports.filter((r) => !TENANT_ADVANCED_REPORT_IDS.includes(r.id))
+    : allReports;
 
   const typeVariants: Record<string, "default" | "info" | "success" | "warning" | "muted"> = {
     Proposals: "default",
@@ -114,10 +133,12 @@ function TenantReports() {
         title="Reports"
         subtitle="Download organization reports"
         actions={
-          <Button>
-            <Calendar className="h-4 w-4 mr-2" />
-            Schedule Report
-          </Button>
+          !productionMode && (
+            <Button>
+              <Calendar className="h-4 w-4 mr-2" />
+              Schedule Report
+            </Button>
+          )
         }
       />
 
@@ -130,13 +151,19 @@ function TenantReports() {
   );
 }
 
-function AssessorReports() {
-  const reports: Report[] = [
+const ASSESSOR_ADVANCED_REPORT_IDS = ["r-201", "r-203", "r-204"]; // My Performance, Weekly Activity, Score Distribution
+
+function AssessorReports({ productionMode }: { productionMode?: boolean }) {
+  const allReports: Report[] = [
     { id: "r-201", title: "My Performance Summary", description: "Your assessment metrics, completion rates, and turnaround times", type: "Performance", format: "PDF", generated: "Mar 1, 2026", size: "420 KB", icon: TrendingUp },
     { id: "r-202", title: "Completed Assessments", description: "List of all proposals you've assessed with scores and outcomes", type: "History", format: "PDF", generated: "Mar 1, 2026", size: "1.1 MB", icon: CheckCircle },
     { id: "r-203", title: "Weekly Activity Log", description: "Summary of your assessment activity for the past week", type: "Activity", format: "PDF", generated: "Feb 28, 2026", size: "280 KB", icon: Clock },
     { id: "r-204", title: "Score Distribution", description: "Analysis of your scoring patterns and consistency metrics", type: "Analytics", format: "PDF", generated: "Feb 25, 2026", size: "350 KB", icon: Target },
   ];
+
+  const reports = productionMode
+    ? allReports.filter((r) => !ASSESSOR_ADVANCED_REPORT_IDS.includes(r.id))
+    : allReports;
 
   const typeVariants: Record<string, "default" | "info" | "success" | "warning" | "muted"> = {
     Performance: "default",

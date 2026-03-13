@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { PageHeader, StatCard, DataCard, StatusBadge, EmptyState } from "@/components/app";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,17 +31,48 @@ import {
   Settings,
   Trash2,
   CheckCircle,
+  Loader2,
 } from "lucide-react";
 
-const members = [
-  { id: "u-001", name: "Alice Johnson", email: "alice@tenant.com", role: "Admin", status: "Active", lastSeen: "Online", assessments: 0, avatar: "AJ" },
-  { id: "u-002", name: "Bob Smith", email: "bob@tenant.com", role: "Assessor", status: "Active", lastSeen: "2 hrs ago", assessments: 45, avatar: "BS" },
-  { id: "u-003", name: "Carol Davis", email: "carol@tenant.com", role: "Assessor", status: "Active", lastSeen: "1 day ago", assessments: 38, avatar: "CD" },
-  { id: "u-004", name: "David Lee", email: "david@tenant.com", role: "Assessor", status: "Active", lastSeen: "30 mins ago", assessments: 52, avatar: "DL" },
-  { id: "u-005", name: "Eve Wilson", email: "eve@tenant.com", role: "Viewer", status: "Active", lastSeen: "3 days ago", assessments: 0, avatar: "EW" },
-  { id: "u-006", name: "Frank Brown", email: "frank@tenant.com", role: "Assessor", status: "Invited", lastSeen: "-", assessments: 0, avatar: "FB" },
-  { id: "u-007", name: "Grace Chen", email: "grace@tenant.com", role: "Admin", status: "Invited", lastSeen: "-", assessments: 0, avatar: "GC" },
-];
+interface ApiUser {
+  id: string;
+  email: string;
+  name: string;
+  role: "tenant_admin" | "assessor" | "saas_admin";
+  tenantId: string;
+}
+
+interface Member {
+  id: string;
+  name: string;
+  email: string;
+  role: "Admin" | "Assessor" | "Viewer";
+  status: "Active" | "Invited";
+  lastSeen: string;
+  assessments: number;
+  avatar: string;
+}
+
+function toMember(u: ApiUser): Member {
+  const roleDisplay: "Admin" | "Assessor" | "Viewer" =
+    u.role === "tenant_admin" || u.role === "saas_admin" ? "Admin" : u.role === "assessor" ? "Assessor" : "Viewer";
+  const initials = u.name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+  return {
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    role: roleDisplay,
+    status: "Active",
+    lastSeen: "—",
+    assessments: 0,
+    avatar: initials,
+  };
+}
 
 type RoleKey = "Admin" | "Assessor" | "Viewer";
 type FilterKey = "all" | "active" | "invited";
@@ -53,8 +84,31 @@ const roleVariants: Record<RoleKey, "default" | "info" | "muted"> = {
 };
 
 export default function UsersClient() {
+  const [members, setMembers] = useState<Member[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<FilterKey>("all");
+
+  const loadUsers = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/tenant/users", { credentials: "include" });
+      const data = await res.json();
+      if (data.ok && data.data?.users) {
+        setMembers(data.data.users.map(toMember));
+      } else {
+        setMembers([]);
+      }
+    } catch {
+      setMembers([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadUsers();
+  }, [loadUsers]);
 
   const filteredMembers = members.filter((m) => {
     const matchesFilter =
@@ -67,8 +121,17 @@ export default function UsersClient() {
     return matchesFilter && matchesSearch;
   });
 
-  const activeCount = members.filter(m => m.status === "Active").length;
-  const invitedCount = members.filter(m => m.status === "Invited").length;
+  const activeCount = members.filter((m) => m.status === "Active").length;
+  const invitedCount = members.filter((m) => m.status === "Invited").length;
+  const noMembersAtAll = members.length === 0;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -148,9 +211,13 @@ export default function UsersClient() {
         {filteredMembers.length === 0 ? (
           <EmptyState
             icon={Users}
-            title="No members found"
-            description="Try adjusting your search or filter"
-            action={{ label: "Clear search", onClick: () => setSearch("") }}
+            title={noMembersAtAll ? "No team members added yet." : "No members found"}
+            description={noMembersAtAll ? "Invite team members to get started." : "Try adjusting your search or filter"}
+            action={
+              noMembersAtAll
+                ? undefined
+                : { label: "Clear search", onClick: () => setSearch("") }
+            }
           />
         ) : (
           <Table>

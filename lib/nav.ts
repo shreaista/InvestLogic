@@ -43,13 +43,13 @@ const SAAS_ADMIN_TENANT: NavItem[] = [
   { key: "overview", label: "Overview", href: "/dashboard", iconKey: "layout-dashboard" },
   { key: "tenants", label: "Tenants", href: "/dashboard/tenants", iconKey: "building-2", permissionKey: "tenant:read", roles: ["saas_admin"] },
   { key: "funds", label: "Funds", href: "/dashboard/funds", iconKey: "wallet", roles: ["tenant_admin", "saas_admin"] },
-  { key: "mandates", label: "Mandate Templates", href: "/dashboard/funds/mandates", iconKey: "scroll-text", permissionKey: "fund:mandate:read", roles: ["tenant_admin", "saas_admin"] },
   { key: "proposals", label: "Proposals", href: "/dashboard/proposals", iconKey: "file-text", permissionKey: "proposal:read" },
-  { key: "queues", label: "Queues", href: "/dashboard/queues", iconKey: "list-checks", permissionKey: "queue:manage", roles: ["tenant_admin", "saas_admin"] },
+  { key: "reports", label: "Reports", href: "/dashboard/reports", iconKey: "bar-chart-3" },
+  { key: "mandates", label: "Mandate Templates", href: "/dashboard/funds/mandates", iconKey: "scroll-text", permissionKey: "fund:mandate:read", roles: ["tenant_admin", "saas_admin"] },
+  { key: "queues", label: "Queues (Advanced)", href: "/dashboard/queues", iconKey: "list-checks", permissionKey: "queue:manage", roles: ["tenant_admin", "saas_admin"] },
   { key: "users", label: "Users", href: "/dashboard/users", iconKey: "users", permissionKey: "user:read" },
   { key: "subscriptions", label: "Subscriptions", href: "/dashboard/subscriptions", iconKey: "credit-card", roles: ["saas_admin"] },
   { key: "costs", label: "Costs", href: "/dashboard/costs", iconKey: "dollar-sign", permissionKey: "costs:read" },
-  { key: "reports", label: "Reports", href: "/dashboard/reports", iconKey: "bar-chart-3" },
 ];
 
 export const NAV_BY_ROLE: Record<string, NavItem[]> = {
@@ -58,12 +58,12 @@ export const NAV_BY_ROLE: Record<string, NavItem[]> = {
   tenant_admin: [
     { key: "overview", label: "Overview", href: "/dashboard", iconKey: "layout-dashboard" },
     { key: "funds", label: "Funds", href: "/dashboard/funds", iconKey: "wallet", roles: ["tenant_admin", "saas_admin"] },
-    { key: "mandates", label: "Mandate Templates", href: "/dashboard/funds/mandates", iconKey: "scroll-text", permissionKey: "fund:mandate:read", roles: ["tenant_admin", "saas_admin"] },
     { key: "proposals", label: "Proposals", href: "/dashboard/proposals", iconKey: "file-text", permissionKey: "proposal:read" },
-    { key: "queues", label: "Queues", href: "/dashboard/queues", iconKey: "list-checks", permissionKey: "queue:manage", roles: ["tenant_admin", "saas_admin"] },
+    { key: "reports", label: "Reports", href: "/dashboard/reports", iconKey: "bar-chart-3" },
+    { key: "mandates", label: "Mandate Templates", href: "/dashboard/funds/mandates", iconKey: "scroll-text", permissionKey: "fund:mandate:read", roles: ["tenant_admin", "saas_admin"] },
+    { key: "queues", label: "Queues (Advanced)", href: "/dashboard/queues", iconKey: "list-checks", permissionKey: "queue:manage", roles: ["tenant_admin", "saas_admin"] },
     { key: "users", label: "Users", href: "/dashboard/users", iconKey: "users", permissionKey: "user:read" },
     { key: "costs", label: "Costs", href: "/dashboard/costs", iconKey: "dollar-sign", permissionKey: "costs:read" },
-    { key: "reports", label: "Reports", href: "/dashboard/reports", iconKey: "bar-chart-3" },
   ],
   assessor: [
     { key: "overview", label: "Overview", href: "/dashboard", iconKey: "layout-dashboard" },

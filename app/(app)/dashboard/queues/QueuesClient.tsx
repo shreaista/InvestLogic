@@ -489,7 +489,7 @@ export default function QueuesClient() {
         {queues.length === 0 ? (
           <EmptyState
             icon={List}
-            title="No queues yet"
+            title="No queues configured yet."
             description="Create your first queue to start organizing assessor assignments"
             action={{ label: "Create Queue", onClick: () => setCreateModalOpen(true) }}
           />
