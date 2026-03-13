@@ -326,10 +326,9 @@ export default function ProposalsClient({ proposals, error, role, proposalCount 
                 <DropdownMenuLabel>Filter by Fund</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem>All Funds</DropdownMenuItem>
-                <DropdownMenuItem>General Fund</DropdownMenuItem>
-                <DropdownMenuItem>Innovation Grant</DropdownMenuItem>
-                <DropdownMenuItem>Community Dev</DropdownMenuItem>
-                <DropdownMenuItem>Youth Programs</DropdownMenuItem>
+                {Array.from(new Set(proposals.map((p) => p.fund).filter(Boolean))).map((fund) => (
+                  <DropdownMenuItem key={fund}>{fund}</DropdownMenuItem>
+                ))}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

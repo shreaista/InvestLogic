@@ -1,4 +1,5 @@
 import "server-only";
+import { productionMode } from "@/lib/config/productionMode";
 
 import {
   getQueueIdsForUser,
@@ -184,6 +185,15 @@ const proposals: Proposal[] = [
   },
 ];
 
+const SEED_PROPOSAL_IDS = new Set([
+  "P-101", "P-102", "P-098", "P-099", "P-095", "P-096", "P-090", "P-091", "P-092", "P-103",
+]);
+
+function filterProposalsForProduction<T extends { id: string }>(items: T[]): T[] {
+  if (!productionMode) return items;
+  return items.filter((p) => !SEED_PROPOSAL_IDS.has(p.id));
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Service Functions
 // ─────────────────────────────────────────────────────────────────────────────
@@ -197,7 +207,8 @@ export interface ListProposalsParams {
 export function listProposalsForUser(params: ListProposalsParams): Proposal[] {
   const { tenantId, userId, role } = params;
 
-  const tenantProposals = proposals.filter((p) => p.tenantId === tenantId);
+  let tenantProposals = proposals.filter((p) => p.tenantId === tenantId);
+  tenantProposals = filterProposalsForProduction(tenantProposals);
 
   if (role === "saas_admin" || role === "tenant_admin") {
     return tenantProposals;
@@ -219,7 +230,8 @@ export function listProposalsForUser(params: ListProposalsParams): Proposal[] {
 export function listProposalsWithAssignmentForUser(params: ListProposalsParams): ProposalWithAssignment[] {
   const { tenantId, role } = params;
 
-  const tenantProposals = proposals.filter((p) => p.tenantId === tenantId);
+  let tenantProposals = proposals.filter((p) => p.tenantId === tenantId);
+  tenantProposals = filterProposalsForProduction(tenantProposals);
 
   if (role !== "saas_admin" && role !== "tenant_admin") {
     return [];
@@ -263,6 +275,10 @@ export function getProposalForUser(params: GetProposalParams): GetProposalResult
   const proposal = proposals.find((p) => p.id === proposalId);
 
   if (!proposal) {
+    return { proposal: null, accessDenied: false };
+  }
+
+  if (productionMode && SEED_PROPOSAL_IDS.has(proposal.id)) {
     return { proposal: null, accessDenied: false };
   }
 

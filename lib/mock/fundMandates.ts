@@ -1,4 +1,5 @@
 import "server-only";
+import { productionMode } from "@/lib/config/productionMode";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -90,19 +91,29 @@ const fundMandates: FundMandateTemplate[] = [
 
 let nextId = 3;
 
+const SEED_MANDATE_IDS = new Set(["fm-001", "fm-002"]);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Service Functions
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function listFundMandates(tenantId: string): FundMandateTemplate[] {
-  return fundMandates.filter((fm) => fm.tenantId === tenantId);
+  const filtered = fundMandates.filter((fm) => fm.tenantId === tenantId);
+  if (productionMode) {
+    return filtered.filter((fm) => !SEED_MANDATE_IDS.has(fm.id));
+  }
+  return filtered;
 }
 
 export function getFundMandateById(
   tenantId: string,
   id: string
 ): FundMandateTemplate | undefined {
-  return fundMandates.find((fm) => fm.id === id && fm.tenantId === tenantId);
+  const mandate = fundMandates.find((fm) => fm.id === id && fm.tenantId === tenantId);
+  if (mandate && productionMode && SEED_MANDATE_IDS.has(id)) {
+    return undefined;
+  }
+  return mandate;
 }
 
 export interface CreateFundMandateResult {

@@ -344,7 +344,7 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
   const [loadingFunds, setLoadingFunds] = useState(false);
   const [loadingFundMandates, setLoadingFundMandates] = useState(false);
 
-  // Load funds on mount
+  // Load funds on mount and pre-select if proposal has a linked fund
   useEffect(() => {
     const loadFunds = async () => {
       setLoadingFunds(true);
@@ -352,7 +352,18 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
         const res = await fetch("/api/tenant/funds");
         const data = await res.json();
         if (data.ok) {
-          setFunds(data.data.funds || []);
+          const fundList = data.data.funds || [];
+          setFunds(fundList);
+          // Pre-select fund if proposal.fund matches a fund name (one-time on load)
+          if (proposal?.fund && fundList.length > 0) {
+            const match = fundList.find(
+              (f: FundOption) =>
+                f.name === proposal.fund || (f.code && `${f.name} (${f.code})` === proposal.fund)
+            );
+            if (match) {
+              setSelectedFundId(match.id);
+            }
+          }
         }
       } catch {
         console.error("Failed to load funds");
@@ -360,7 +371,7 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
       setLoadingFunds(false);
     };
     loadFunds();
-  }, []);
+  }, [proposal?.id, proposal?.fund]);
 
   // Load fund mandates when fund is selected
   useEffect(() => {
@@ -911,32 +922,36 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="overflow-visible">
           <CardHeader>
             <CardTitle className="text-base">Status & Assignment</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 overflow-visible">
             <div>
               <p className="text-sm font-medium mb-2">Current Status</p>
               <StatusBadge variant={statusVariants[proposal.status]} icon={StatusIcon}>
                 {proposal.status}
               </StatusBadge>
             </div>
-            <div>
-              <p className="text-sm font-medium mb-2">Fund</p>
-              <p className="text-sm text-muted-foreground">{proposal.fund}</p>
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Linked Fund</p>
+              {proposal.fund ? (
+                <p className="text-sm text-muted-foreground">{proposal.fund}</p>
+              ) : (
+                <p className="text-sm text-amber-600">Select a Fund to link this proposal before evaluation.</p>
+              )}
             </div>
-            <div>
-              <p className="text-sm font-medium mb-2">Select Fund to View Mandates</p>
+            <div className="space-y-2 overflow-visible">
+              <p className="text-sm font-medium">Select Fund to view mandates</p>
               <Select
                 value={selectedFundId}
                 onValueChange={setSelectedFundId}
                 disabled={loadingFunds}
               >
-                <SelectTrigger className="w-full">
+                <SelectTrigger className="w-full min-h-10">
                   <SelectValue placeholder={loadingFunds ? "Loading funds..." : "Select a fund"} />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="z-[100]" position="popper" sideOffset={4}>
                   {funds.map((fund) => (
                     <SelectItem key={fund.id} value={fund.id}>
                       {fund.name} {fund.code ? `(${fund.code})` : ""}
@@ -978,7 +993,7 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
         </Card>
       </div>
 
-      {/* Fund Mandates Panel - shows when a fund is selected */}
+      {/* Linked Mandates Panel - shows when a fund is selected */}
       {selectedFundId && (
         <DataCard
           title={`Linked Mandates: ${funds.find(f => f.id === selectedFundId)?.name || "Selected Fund"}`}
@@ -993,7 +1008,7 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
             <div className="text-center py-8 text-muted-foreground">
               <FileStack className="h-8 w-8 mx-auto mb-2 opacity-50" />
               <p className="font-medium">No mandate files found for this fund.</p>
-              <p className="text-sm mt-2">Upload a mandate in Funds &gt; Mandates.</p>
+              <p className="text-sm mt-2">Upload one in Funds &gt; Mandates.</p>
             </div>
           ) : (
             <Table>

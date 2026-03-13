@@ -1,4 +1,5 @@
 import "server-only";
+import { productionMode } from "@/lib/config/productionMode";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -141,12 +142,27 @@ const fundMandateLinks: FundMandateLink[] = [
 let nextFundId = 8;
 let nextLinkId = 5;
 
+// Seed fund IDs (hidden in production mode)
+const SEED_FUND_IDS = new Set([
+  "fund-001",
+  "fund-002",
+  "fund-003",
+  "fund-004",
+  "fund-005",
+  "F-001",
+  "F-002",
+]);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Fund CRUD Operations
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function listFunds(tenantId: string): Fund[] {
-  return funds.filter((f) => f.tenantId === tenantId);
+  const filtered = funds.filter((f) => f.tenantId === tenantId);
+  if (productionMode) {
+    return filtered.filter((f) => !SEED_FUND_IDS.has(f.id));
+  }
+  return filtered;
 }
 
 export function getFundById(tenantId: string, fundId: string): Fund | undefined {
