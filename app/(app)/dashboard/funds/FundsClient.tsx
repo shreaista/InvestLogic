@@ -404,9 +404,10 @@ export default function FundsClient({ funds: initialFunds, fundMandatesEnabled, 
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Funds"
-        subtitle="Manage funding sources and allocations"
+      <div>
+        <PageHeader
+          title="Funds"
+          subtitle="Manage funding sources and allocations"
         actions={
           activeTab === "funds" ? (
             <Dialog open={isCreateFundOpen} onOpenChange={setIsCreateFundOpen}>
@@ -543,6 +544,10 @@ export default function FundsClient({ funds: initialFunds, fundMandatesEnabled, 
           ) : null
         }
       />
+      <p className="text-sm text-muted-foreground -mt-2">
+        Funds are investment programs or funding vehicles. Each fund has Mandate documents that define its investment criteria.
+      </p>
+      </div>
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList>
@@ -754,6 +759,9 @@ export default function FundsClient({ funds: initialFunds, fundMandatesEnabled, 
         </TabsContent>
 
         <TabsContent value="mandates" className="space-y-6 mt-6">
+          <p className="text-sm text-muted-foreground">
+            Uploaded mandate files define investment criteria and are used to evaluate whether proposals fit the fund strategy.
+          </p>
           {!fundMandatesEnabled ? (
             <EmptyState
               icon={AlertCircle}

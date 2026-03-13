@@ -583,15 +583,15 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
 
       if (data.ok) {
         setMemoMessage({
-          text: "Investment memo generated successfully",
+          text: "Report generated successfully",
           type: "success",
         });
         await loadMemos();
       } else {
-        setMemoMessage({ text: data.error || "Failed to generate memo", type: "error" });
+        setMemoMessage({ text: data.error || "Failed to generate report", type: "error" });
       }
     } catch {
-      setMemoMessage({ text: "Network error during memo generation", type: "error" });
+      setMemoMessage({ text: "Network error during report generation", type: "error" });
     }
 
     setGeneratingMemo(false);
@@ -862,6 +862,18 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
         }
       />
 
+      {/* Step-by-step flow indicator */}
+      <div className="rounded-lg border bg-muted/30 px-4 py-3">
+        <p className="text-xs font-medium text-muted-foreground mb-2">Proposal evaluation flow</p>
+        <ol className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground list-decimal list-inside">
+          <li>Select Fund</li>
+          <li>Review linked Mandates</li>
+          <li>Upload Proposal Documents</li>
+          <li>Run Evaluation</li>
+          <li>Generate Report</li>
+        </ol>
+      </div>
+
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
@@ -969,8 +981,8 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
       {/* Fund Mandates Panel - shows when a fund is selected */}
       {selectedFundId && (
         <DataCard
-          title={`Mandates for ${funds.find(f => f.id === selectedFundId)?.name || "Selected Fund"}`}
-          description="Mandate templates linked to the selected fund (read-only)"
+          title={`Linked Mandates: ${funds.find(f => f.id === selectedFundId)?.name || "Selected Fund"}`}
+          description="Mandate files linked to this fund are used to evaluate proposals"
         >
           {loadingFundMandates ? (
             <div className="flex items-center justify-center py-8">
@@ -980,7 +992,8 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
           ) : fundMandates.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <FileStack className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p>No mandates linked to this fund.</p>
+              <p className="font-medium">No mandate files found for this fund.</p>
+              <p className="text-sm mt-2">Upload a mandate in Funds &gt; Mandates.</p>
             </div>
           ) : (
             <Table>
@@ -1304,7 +1317,7 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
                   ) : (
                     <Upload className="h-4 w-4 mr-1" />
                   )}
-                  Upload File
+                  Upload Proposal Documents
                 </Button>
               </>
             )}
@@ -1440,8 +1453,8 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
               )}
               Run Evaluation
             </Button>
-            {/* Memo Generation Buttons */}
-            {displayedEvaluation && (
+            {/* Report Generation Buttons */}
+            {displayedEvaluation ? (
               <>
                 <Button
                   size="sm"
@@ -1455,7 +1468,7 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
                   ) : (
                     <FileOutput className="h-4 w-4 mr-1" />
                   )}
-                  Generate Memo
+                  Generate Report
                 </Button>
                 {latestMemoBlobPath && (
                   <Button
@@ -1465,10 +1478,23 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
                     className="border-emerald-300 text-emerald-700 hover:bg-emerald-50"
                   >
                     <Download className="h-4 w-4 mr-1" />
-                    Download Memo
+                    Download Report
                   </Button>
                 )}
               </>
+            ) : (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground" title="Run evaluation first to generate a report.">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled
+                  className="border-muted-foreground/30 opacity-60 cursor-not-allowed"
+                >
+                  <FileOutput className="h-4 w-4 mr-1" />
+                  Generate Report
+                </Button>
+                <span className="hidden sm:inline">Run evaluation first to generate a report.</span>
+              </div>
             )}
           </div>
         }
@@ -1597,7 +1623,7 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
             {/* Memo Status section */}
             {(latestMemoBlobPath || memoCount > 0) && (
               <div className="px-5 py-3 border-b bg-muted/5">
-                <p className="text-xs font-medium text-muted-foreground mb-2">Memo Status</p>
+                <p className="text-xs font-medium text-muted-foreground mb-2">Report Status</p>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
                   {latestMemoFileName && (
                     <span className="flex items-center gap-1.5">
@@ -1611,13 +1637,13 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
                     </span>
                   )}
                   <span className="text-muted-foreground">
-                    {memoCount} memo{memoCount !== 1 ? "s" : ""} available
+                    {memoCount} report{memoCount !== 1 ? "s" : ""} available
                   </span>
                 </div>
                 {/* Memo History */}
                 {memos.length > 0 && (
                   <div className="mt-3 pt-3 border-t">
-                    <p className="text-xs font-medium text-muted-foreground mb-2">Memo History</p>
+                    <p className="text-xs font-medium text-muted-foreground mb-2">Report History</p>
                     <div className="space-y-1.5">
                       {memos.map((m) => (
                         <div

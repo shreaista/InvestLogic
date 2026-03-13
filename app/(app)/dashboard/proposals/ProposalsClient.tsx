@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { PageHeader, StatCard, DataCard, StatusBadge, EmptyState } from "@/components/app";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,6 +55,7 @@ import {
   Filter,
   ChevronDown,
   Download,
+  Plus,
   LucideIcon,
   AlertCircle,
   User,
@@ -302,6 +304,12 @@ export default function ProposalsClient({ proposals, error, role, proposalCount 
         subtitle="View and manage all funding proposals"
         actions={
           <div className="flex items-center gap-2">
+            <Link href="/dashboard/proposals/new">
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                New Proposal
+              </Button>
+            </Link>
             <Button variant="outline" size="sm">
               <Download className="h-4 w-4 mr-2" />
               Export
@@ -327,6 +335,10 @@ export default function ProposalsClient({ proposals, error, role, proposalCount 
           </div>
         }
       />
+
+      <p className="text-sm text-muted-foreground -mt-4">
+        Proposals are incoming opportunities or applications that are evaluated against a selected fund.
+      </p>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard

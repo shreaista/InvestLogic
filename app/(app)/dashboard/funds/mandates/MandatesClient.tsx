@@ -167,7 +167,7 @@ export default function MandatesClient() {
     <div className="space-y-6">
       <PageHeader
         title="Fund Mandate Templates"
-        subtitle="Upload and manage fund mandate template files"
+        subtitle="Upload and manage fund mandate template files. Uploaded mandate files are used to evaluate whether proposals fit the fund strategy."
         actions={
           <Button onClick={() => loadFiles()} disabled={loading}>
             {loading ? (
