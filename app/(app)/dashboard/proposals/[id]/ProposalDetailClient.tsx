@@ -936,12 +936,12 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
             <div className="space-y-2">
               <p className="text-sm font-medium">Linked Fund</p>
               {proposal.fund ? (
-                <p className="text-sm text-muted-foreground">{proposal.fund}</p>
+                <p className="text-sm text-muted-foreground">Linked Fund: {proposal.fund}</p>
               ) : (
                 <p className="text-sm text-amber-600">Select a Fund to link this proposal before evaluation.</p>
               )}
             </div>
-            <div className="space-y-2 overflow-visible">
+            <div className="space-y-2 overflow-visible pt-1">
               <p className="text-sm font-medium">Select Fund to view mandates</p>
               <Select
                 value={selectedFundId}
@@ -951,7 +951,7 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
                 <SelectTrigger className="w-full min-h-10">
                   <SelectValue placeholder={loadingFunds ? "Loading funds..." : "Select a fund"} />
                 </SelectTrigger>
-                <SelectContent className="z-[100]" position="popper" sideOffset={4}>
+                <SelectContent className="z-[100]" position="popper" sideOffset={4} collisionPadding={8}>
                   {funds.map((fund) => (
                     <SelectItem key={fund.id} value={fund.id}>
                       {fund.name} {fund.code ? `(${fund.code})` : ""}
@@ -960,7 +960,7 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
                 </SelectContent>
               </Select>
             </div>
-            <div>
+            <div className="pt-2">
               <p className="text-sm font-medium mb-2">Priority</p>
               <StatusBadge
                 variant={

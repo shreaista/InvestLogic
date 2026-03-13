@@ -205,7 +205,9 @@ export default function LoginPage() {
                   </Button>
                 </form>
 
-                {/* Demo accounts */}
+                {/* Demo accounts - hidden in production mode */}
+                {!(process.env.NEXT_PUBLIC_PRODUCTION_MODE === "true" ||
+                  (process.env.NEXT_PUBLIC_PRODUCTION_MODE !== "false" && process.env.NODE_ENV === "production")) && (
                 <div className="mt-6 pt-6 border-t">
                   <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
                     Demo Accounts
@@ -231,6 +233,7 @@ export default function LoginPage() {
                     />
                   </div>
                 </div>
+                )}
               </CardContent>
             </Card>
 
