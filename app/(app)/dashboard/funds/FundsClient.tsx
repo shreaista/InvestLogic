@@ -540,9 +540,14 @@ export default function FundsClient({ funds: initialFunds, fundMandatesEnabled, 
                       <AlertCircle className="h-4 w-4" />
                       <AlertDescription>
                         {createFundError}
-                        {createFundError.includes("already exists") && (
+                        {createFundError.includes("name already exists") && (
                           <span className="block mt-1 text-xs opacity-90">
                             Choose a different fund name or check the Funds list for the existing fund.
+                          </span>
+                        )}
+                        {createFundError.includes("code already exists") && (
+                          <span className="block mt-1 text-xs opacity-90">
+                            Choose a different fund code or leave the code field empty.
                           </span>
                         )}
                       </AlertDescription>

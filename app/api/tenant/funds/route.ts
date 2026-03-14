@@ -46,9 +46,7 @@ export async function POST(request: NextRequest) {
     const tenantId = requireTenant(user);
 
     const body: CreateFundInput = await request.json();
-    const duplicateCheckScope = listFunds(tenantId);
-    const matchedNames = duplicateCheckScope.filter((f) => f.name.toLowerCase() === (body.name || "").trim().toLowerCase()).map((f) => f.name);
-    console.log("[Funds API] POST create, tenantId:", tenantId, "source:", STORAGE_SOURCE, "duplicate-check scope count:", duplicateCheckScope.length, "matched fund names:", matchedNames, "requested name:", body.name);
+    console.log("[Funds API] POST create, tenantId:", tenantId, "source:", STORAGE_SOURCE, "incoming name:", JSON.stringify(body.name), "incoming code:", JSON.stringify(body.code));
 
     const result = createFund(tenantId, body);
 

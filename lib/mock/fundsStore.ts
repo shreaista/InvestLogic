@@ -153,6 +153,12 @@ function getFundsForTenant(tenantId: string): Fund[] {
   return funds.filter((f) => f.tenantId === tenantId);
 }
 
+/** Normalize for exact duplicate comparison: trim, collapse whitespace, lowercase. */
+function normalizeForComparison(s: string | undefined): string {
+  if (!s || typeof s !== "string") return "";
+  return s.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
 export function listFunds(tenantId: string): Fund[] {
   return getFundsForTenant(tenantId);
 }
@@ -175,13 +181,33 @@ export function createFund(
     return { ok: false, error: "Fund name is required" };
   }
 
-  // Use same scope as listFunds - exact same storage and filtering
+  const normalizedName = normalizeForComparison(input.name);
+  const normalizedCode = normalizeForComparison(input.code);
+
   const tenantFunds = getFundsForTenant(tenantId);
-  const existingFund = tenantFunds.find(
-    (f) => f.name.toLowerCase() === input.name.trim().toLowerCase()
-  );
-  if (existingFund) {
+  const nameMatch = tenantFunds.find((f) => normalizeForComparison(f.name) === normalizedName);
+  const codeMatch =
+    normalizedCode !== ""
+      ? tenantFunds.find((f) => normalizeForComparison(f.code) === normalizedCode)
+      : null;
+
+  if (nameMatch) {
+    console.log("[fundsStore] Duplicate name rejected:", {
+      incomingName: input.name,
+      normalizedName,
+      matchedExistingName: nameMatch.name,
+      matchedExistingId: nameMatch.id,
+    });
     return { ok: false, error: "A fund with this name already exists" };
+  }
+  if (codeMatch) {
+    console.log("[fundsStore] Duplicate code rejected:", {
+      incomingCode: input.code,
+      normalizedCode,
+      matchedExistingCode: codeMatch.code,
+      matchedExistingId: codeMatch.id,
+    });
+    return { ok: false, error: "A fund with this code already exists" };
   }
 
   const now = new Date().toISOString();
@@ -196,6 +222,7 @@ export function createFund(
   };
 
   funds.push(newFund);
+  console.log("[fundsStore] Fund created:", { id: newFund.id, name: newFund.name, code: newFund.code, tenantId });
   return { ok: true, fund: newFund };
 }
 
