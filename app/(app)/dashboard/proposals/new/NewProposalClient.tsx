@@ -40,11 +40,34 @@ interface Fund {
   status: string;
 }
 
-async function fetchFunds(): Promise<Fund[]> {
-  const res = await fetch("/api/tenant/funds", { credentials: "include" });
-  const data = await res.json();
-  if (!data.ok || !Array.isArray(data.data?.funds)) return [];
-  return data.data.funds.filter((f: Fund) => f.status === "active");
+const FUNDS_API_URL = "/api/tenant/funds";
+
+async function fetchFundsForProposal(): Promise<Fund[]> {
+  console.log("[NewProposal] Fund load started, endpoint:", FUNDS_API_URL);
+  try {
+    const res = await fetch(FUNDS_API_URL, { credentials: "include" });
+    const data = await res.json();
+    const rawFunds = data.data?.funds;
+    const rawCount = Array.isArray(rawFunds) ? rawFunds.length : 0;
+    console.log("[NewProposal] Fund load response status:", res.status, "raw funds count:", rawCount);
+
+    if (!data.ok || !Array.isArray(rawFunds)) {
+      console.warn("[NewProposal] Fund load failed or empty, ok:", data.ok, "rawCount:", rawCount);
+      return [];
+    }
+
+    const activeFunds = rawFunds.filter(
+      (f: Fund) => !f.status || String(f.status).toLowerCase() === "active"
+    );
+    const activeCount = activeFunds.length;
+    const dropdownOptions = activeFunds.map((f: Fund) => ({ id: f.id, name: f.name, code: f.code }));
+    console.log("[NewProposal] Active funds count:", activeCount, "dropdown options:", dropdownOptions);
+
+    return activeFunds;
+  } catch (err) {
+    console.error("[NewProposal] Fund load network error:", err);
+    return [];
+  }
 }
 
 function validateFile(file: File): string | null {
@@ -82,7 +105,7 @@ export default function NewProposalClient() {
 
   const loadFunds = useCallback(async () => {
     setFundsLoading(true);
-    const list = await fetchFunds();
+    const list = await fetchFundsForProposal();
     setFunds(list);
     setFundsLoading(false);
   }, []);
@@ -333,7 +356,12 @@ export default function NewProposalClient() {
                   <SelectTrigger id="fundId" className={hasFieldError("fundId") ? "border-destructive" : ""}>
                     <SelectValue placeholder={fundsLoading ? "Loading funds..." : "Select fund"} />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent
+                    position="popper"
+                    sideOffset={4}
+                    collisionPadding={8}
+                    className="z-[100]"
+                  >
                     {funds.map((f) => (
                       <SelectItem key={f.id} value={f.id}>
                         {f.name}
@@ -369,7 +397,12 @@ export default function NewProposalClient() {
                   <SelectTrigger id="stage">
                     <SelectValue placeholder="Select stage" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent
+                    position="popper"
+                    sideOffset={4}
+                    collisionPadding={8}
+                    className="z-[100]"
+                  >
                     {STAGES.map((s) => (
                       <SelectItem key={s} value={s}>
                         {s}
