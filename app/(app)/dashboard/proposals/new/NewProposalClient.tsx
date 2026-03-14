@@ -18,9 +18,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Loader2, AlertCircle } from "lucide-react";
+import { ArrowLeft, Loader2, AlertCircle, X } from "lucide-react";
 
-const STAGES = ["Seed", "Series A", "Series B", "Growth"] as const;
+const STAGES = [
+  "Seed",
+  "Series A",
+  "Series B",
+  "Growth",
+  "Late Stage",
+  "Grant / Nonprofit",
+] as const;
+
 const ALLOWED_EXTENSIONS = [".pdf", ".doc", ".docx", ".xls", ".xlsx"];
 const MAX_FILE_SIZE = 25 * 1024 * 1024;
 
@@ -57,17 +65,20 @@ export default function NewProposalClient() {
   const [fundsLoading, setFundsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [form, setForm] = useState({
     name: "",
     company: "",
     sector: "",
     stage: "" as string,
+    geography: "",
+    businessModel: "",
     amountRequested: "",
     fundId: "",
     description: "",
   });
-  const [file, setFile] = useState<File | null>(null);
-  const [fileError, setFileError] = useState<string | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const [fileErrors, setFileErrors] = useState<string[]>([]);
 
   const loadFunds = useCallback(async () => {
     setFundsLoading(true);
@@ -81,41 +92,81 @@ export default function NewProposalClient() {
   }, [loadFunds]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    setFileError(null);
-    if (!f) {
-      setFile(null);
-      return;
+    const selectedFiles = Array.from(e.target.files ?? []);
+    setFileErrors([]);
+
+    const validFiles: File[] = [];
+    const errors: string[] = [];
+
+    for (const f of selectedFiles) {
+      const err = validateFile(f);
+      if (err) {
+        errors.push(`${f.name}: ${err}`);
+      } else {
+        validFiles.push(f);
+      }
     }
-    const err = validateFile(f);
-    if (err) {
-      setFileError(err);
-      setFile(null);
-      e.target.value = "";
-      return;
+
+    if (errors.length > 0) {
+      setFileErrors(errors);
     }
-    setFile(f);
+    setFiles((prev) => [...prev, ...validFiles]);
+    e.target.value = "";
+  };
+
+  const removeFile = (index: number) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+    setFileErrors([]);
+  };
+
+  const validateForm = (): boolean => {
+    const errors: Record<string, string> = {};
+
+    if (!form.name.trim()) {
+      errors.name = "Proposal name is required";
+    }
+
+    if (!form.company.trim()) {
+      errors.company = "Company / Applicant name is required";
+    }
+
+    const amount = form.amountRequested ? Number(form.amountRequested) : NaN;
+    if (!form.amountRequested.trim()) {
+      errors.amountRequested = "Requested amount is required";
+    } else if (Number.isNaN(amount) || amount < 0) {
+      errors.amountRequested = "Requested amount must be a valid positive number";
+    }
+
+    if (!form.fundId) {
+      errors.fundId = "Fund is required";
+    }
+
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitError(null);
+    setFieldErrors({});
 
-    const name = form.name.trim();
-    if (!name) {
-      setSubmitError("Proposal name is required");
+    if (!validateForm()) {
+      setSubmitError("Please fix the validation errors before submitting.");
+      toast("Please fix the validation errors", "error");
       return;
     }
 
     setIsSubmitting(true);
     try {
       const payload = {
-        name,
-        company: form.company.trim() || undefined,
+        name: form.name.trim(),
+        company: form.company.trim(),
         sector: form.sector.trim() || undefined,
         stage: STAGES.includes(form.stage as (typeof STAGES)[number]) ? form.stage : undefined,
-        amountRequested: form.amountRequested ? Number(form.amountRequested) : undefined,
-        fundId: form.fundId || undefined,
+        geography: form.geography.trim() || undefined,
+        businessModel: form.businessModel.trim() || undefined,
+        amountRequested: Number(form.amountRequested),
+        fundId: form.fundId,
         description: form.description.trim() || undefined,
       };
 
@@ -137,22 +188,28 @@ export default function NewProposalClient() {
 
       const proposalId = data.data.proposal.id;
 
-      if (file) {
-        const formData = new FormData();
-        formData.append("file", file);
-        const uploadRes = await fetch(`/api/proposals/${proposalId}/documents`, {
-          method: "POST",
-          credentials: "include",
-          body: formData,
-        });
-        const uploadData = await uploadRes.json();
-        if (!uploadData.ok) {
-          toast("Proposal created but document upload failed", "error");
+      if (files.length > 0) {
+        let uploadFailed = false;
+        for (const file of files) {
+          const formData = new FormData();
+          formData.append("file", file);
+          const uploadRes = await fetch(`/api/proposals/${proposalId}/documents`, {
+            method: "POST",
+            credentials: "include",
+            body: formData,
+          });
+          const uploadData = await uploadRes.json();
+          if (!uploadData.ok) {
+            uploadFailed = true;
+          }
+        }
+        if (uploadFailed) {
+          toast("Proposal created but some document uploads failed", "error");
         }
       }
 
       toast("Proposal created successfully");
-      router.push("/dashboard/proposals");
+      router.push(`/dashboard/proposals/${proposalId}`);
       router.refresh();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Network error";
@@ -162,6 +219,8 @@ export default function NewProposalClient() {
       setIsSubmitting(false);
     }
   };
+
+  const hasFieldError = (field: string) => !!fieldErrors[field];
 
   return (
     <div className="space-y-6">
@@ -176,14 +235,14 @@ export default function NewProposalClient() {
 
       <PageHeader
         title="New Proposal"
-        subtitle="Create a new funding proposal"
+        subtitle="Create a new funding proposal linked to a fund"
       />
 
       <Card className="max-w-2xl">
         <CardHeader>
           <CardTitle>Proposal Details</CardTitle>
           <CardDescription>
-            Fill in the proposal information. Proposal name is required.
+            Fill in the proposal information. Fields marked with * are required.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -198,22 +257,100 @@ export default function NewProposalClient() {
                   value={form.name}
                   onChange={(e) => {
                     setForm({ ...form, name: e.target.value });
+                    if (fieldErrors.name) setFieldErrors((p) => ({ ...p, name: "" }));
                     if (submitError) setSubmitError(null);
                   }}
                   placeholder="e.g., AI Healthcare Analytics"
-                  className={submitError && !form.name.trim() ? "border-destructive" : ""}
-                  required
+                  className={hasFieldError("name") ? "border-destructive" : ""}
                 />
+                {fieldErrors.name && (
+                  <p className="text-sm text-destructive flex items-center gap-1">
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    {fieldErrors.name}
+                  </p>
+                )}
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="company">Company Name</Label>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="company">
+                  Company / Applicant Name <span className="text-destructive">*</span>
+                </Label>
                 <Input
                   id="company"
                   value={form.company}
-                  onChange={(e) => setForm({ ...form, company: e.target.value })}
+                  onChange={(e) => {
+                    setForm({ ...form, company: e.target.value });
+                    if (fieldErrors.company) setFieldErrors((p) => ({ ...p, company: "" }));
+                  }}
                   placeholder="e.g., MediPredict AI"
+                  className={hasFieldError("company") ? "border-destructive" : ""}
                 />
+                {fieldErrors.company && (
+                  <p className="text-sm text-destructive flex items-center gap-1">
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    {fieldErrors.company}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="amountRequested">
+                  Requested Amount ($) <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="amountRequested"
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={form.amountRequested}
+                  onChange={(e) => {
+                    setForm({ ...form, amountRequested: e.target.value });
+                    if (fieldErrors.amountRequested) setFieldErrors((p) => ({ ...p, amountRequested: "" }));
+                  }}
+                  placeholder="e.g., 1000000"
+                  className={hasFieldError("amountRequested") ? "border-destructive" : ""}
+                />
+                {fieldErrors.amountRequested && (
+                  <p className="text-sm text-destructive flex items-center gap-1">
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    {fieldErrors.amountRequested}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="fundId">
+                  Fund <span className="text-destructive">*</span>
+                </Label>
+                <Select
+                  value={form.fundId}
+                  onValueChange={(v) => {
+                    setForm({ ...form, fundId: v });
+                    if (fieldErrors.fundId) setFieldErrors((p) => ({ ...p, fundId: "" }));
+                  }}
+                  disabled={fundsLoading}
+                >
+                  <SelectTrigger id="fundId" className={hasFieldError("fundId") ? "border-destructive" : ""}>
+                    <SelectValue placeholder={fundsLoading ? "Loading funds..." : "Select fund"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {funds.map((f) => (
+                      <SelectItem key={f.id} value={f.id}>
+                        {f.name}
+                        {f.code ? ` (${f.code})` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {funds.length === 0 && !fundsLoading && (
+                  <p className="text-sm text-muted-foreground">No active funds available. Create a fund first.</p>
+                )}
+                {fieldErrors.fundId && (
+                  <p className="text-sm text-destructive flex items-center gap-1">
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    {fieldErrors.fundId}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -228,10 +365,7 @@ export default function NewProposalClient() {
 
               <div className="space-y-2">
                 <Label htmlFor="stage">Stage</Label>
-                <Select
-                  value={form.stage}
-                  onValueChange={(v) => setForm({ ...form, stage: v })}
-                >
+                <Select value={form.stage} onValueChange={(v) => setForm({ ...form, stage: v })}>
                   <SelectTrigger id="stage">
                     <SelectValue placeholder="Select stage" />
                   </SelectTrigger>
@@ -246,38 +380,23 @@ export default function NewProposalClient() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="amountRequested">Amount Requested ($)</Label>
+                <Label htmlFor="geography">Geography</Label>
                 <Input
-                  id="amountRequested"
-                  type="number"
-                  min={0}
-                  step={1}
-                  value={form.amountRequested}
-                  onChange={(e) => setForm({ ...form, amountRequested: e.target.value })}
-                  placeholder="e.g., 10000000"
+                  id="geography"
+                  value={form.geography}
+                  onChange={(e) => setForm({ ...form, geography: e.target.value })}
+                  placeholder="e.g., North America"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="fundId">Fund</Label>
-                <Select
-                  value={form.fundId}
-                  onValueChange={(v) => setForm({ ...form, fundId: v })}
-                  disabled={fundsLoading}
-                >
-                  <SelectTrigger id="fundId">
-                    <SelectValue placeholder={fundsLoading ? "Loading funds..." : "Select fund"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">None</SelectItem>
-                    {funds.map((f) => (
-                      <SelectItem key={f.id} value={f.id}>
-                        {f.name}
-                        {f.code ? ` (${f.code})` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="businessModel">Business Model</Label>
+                <Input
+                  id="businessModel"
+                  value={form.businessModel}
+                  onChange={(e) => setForm({ ...form, businessModel: e.target.value })}
+                  placeholder="e.g., B2B SaaS"
+                />
               </div>
             </div>
 
@@ -293,9 +412,9 @@ export default function NewProposalClient() {
             </div>
 
             <div className="space-y-2">
-              <Label>Upload Proposal Document</Label>
+              <Label>Upload Proposal Documents</Label>
               <p className="text-sm text-muted-foreground">
-                PDF, DOC, DOCX, XLS, or XLSX. Max 25MB.
+                PDF, DOC, DOCX, XLS, or XLSX. Max 25MB per file. You can select multiple files.
               </p>
               <div className="flex items-center gap-2">
                 <Input
@@ -303,18 +422,36 @@ export default function NewProposalClient() {
                   accept=".pdf,.doc,.docx,.xls,.xlsx"
                   onChange={handleFileChange}
                   className="max-w-xs"
+                  multiple
                 />
-                {file && (
-                  <span className="text-sm text-muted-foreground truncate max-w-[200px]">
-                    {file.name}
-                  </span>
-                )}
               </div>
-              {fileError && (
-                <p className="text-sm text-destructive flex items-center gap-1">
-                  <AlertCircle className="h-4 w-4 shrink-0" />
-                  {fileError}
-                </p>
+              {files.length > 0 && (
+                <ul className="mt-2 space-y-1">
+                  {files.map((f, i) => (
+                    <li key={`${f.name}-${i}`} className="flex items-center gap-2 text-sm">
+                      <span className="text-muted-foreground truncate max-w-[280px]">{f.name}</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                        onClick={() => removeFile(i)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {fileErrors.length > 0 && (
+                <div className="space-y-1">
+                  {fileErrors.map((err, i) => (
+                    <p key={i} className="text-sm text-destructive flex items-center gap-1">
+                      <AlertCircle className="h-4 w-4 shrink-0" />
+                      {err}
+                    </p>
+                  ))}
+                </div>
               )}
             </div>
 
@@ -326,7 +463,17 @@ export default function NewProposalClient() {
             )}
 
             <div className="flex gap-2">
-              <Button type="submit" disabled={isSubmitting || !form.name.trim()}>
+              <Button
+                type="submit"
+                disabled={
+                  isSubmitting ||
+                  fundsLoading ||
+                  !form.name.trim() ||
+                  !form.company.trim() ||
+                  !form.amountRequested.trim() ||
+                  !form.fundId
+                }
+              >
                 {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Create Proposal
               </Button>

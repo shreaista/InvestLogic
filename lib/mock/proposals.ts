@@ -18,7 +18,13 @@ export type ProposalStatus = "New" | "Assigned" | "In Review" | "Approved" | "De
 
 export type AssignmentType = "direct" | "queue" | "none";
 
-export type ProposalStage = "Seed" | "Series A" | "Series B" | "Growth";
+export type ProposalStage =
+  | "Seed"
+  | "Series A"
+  | "Series B"
+  | "Growth"
+  | "Late Stage"
+  | "Grant / Nonprofit";
 
 export interface Proposal {
   id: string;
@@ -35,6 +41,8 @@ export interface Proposal {
   priority: "High" | "Medium" | "Low";
   sector?: string;
   stage?: ProposalStage;
+  geography?: string;
+  businessModel?: string;
   description?: string;
 }
 
@@ -220,6 +228,8 @@ export interface CreateProposalInput {
   company?: string;
   sector?: string;
   stage?: ProposalStage;
+  geography?: string;
+  businessModel?: string;
   amountRequested?: number;
   fundId?: string;
   description?: string;
@@ -240,14 +250,28 @@ export function createProposal(
     return { ok: false, error: "Proposal name is required" };
   }
 
-  let fundName = "Unspecified";
-  if (input.fundId) {
-    const fund = getFundById(tenantId, input.fundId);
-    if (!fund) {
-      return { ok: false, error: "Fund not found" };
-    }
-    fundName = fund.name;
+  const company = (input.company ?? "").trim();
+  if (!company) {
+    return { ok: false, error: "Company / Applicant name is required" };
   }
+
+  const amountRequested =
+    typeof input.amountRequested === "number" && !Number.isNaN(input.amountRequested)
+      ? input.amountRequested
+      : undefined;
+  if (amountRequested === undefined || amountRequested < 0) {
+    return { ok: false, error: "Requested amount is required and must be a valid number" };
+  }
+
+  if (!input.fundId || !input.fundId.trim()) {
+    return { ok: false, error: "Fund is required" };
+  }
+
+  const fund = getFundById(tenantId, input.fundId);
+  if (!fund) {
+    return { ok: false, error: "Fund not found" };
+  }
+  const fundName = fund.name;
 
   const id = nextProposalId();
   const today = new Date().toISOString().slice(0, 10);
@@ -255,9 +279,9 @@ export function createProposal(
   const proposal: Proposal = {
     id,
     name,
-    applicant: (input.company ?? "").trim() || "Unknown",
+    applicant: company,
     fund: fundName,
-    amount: typeof input.amountRequested === "number" ? input.amountRequested : 0,
+    amount: amountRequested,
     status: "New",
     assignedToUserId: null,
     assignedToName: null,
@@ -267,6 +291,8 @@ export function createProposal(
     priority: "Medium",
     sector: input.sector?.trim() || undefined,
     stage: input.stage,
+    geography: input.geography?.trim() || undefined,
+    businessModel: input.businessModel?.trim() || undefined,
     description: input.description?.trim() || undefined,
   };
 

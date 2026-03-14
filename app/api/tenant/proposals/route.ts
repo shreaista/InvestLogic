@@ -37,7 +37,14 @@ export async function GET() {
   }
 }
 
-const VALID_STAGES: ProposalStage[] = ["Seed", "Series A", "Series B", "Growth"];
+const VALID_STAGES: ProposalStage[] = [
+  "Seed",
+  "Series A",
+  "Series B",
+  "Growth",
+  "Late Stage",
+  "Grant / Nonprofit",
+];
 
 export async function POST(request: NextRequest) {
   try {
@@ -50,6 +57,8 @@ export async function POST(request: NextRequest) {
     const company = body?.company;
     const sector = body?.sector;
     const stage = body?.stage;
+    const geography = body?.geography;
+    const businessModel = body?.businessModel;
     const amountRequested = body?.amountRequested;
     const fundId = body?.fundId;
     const description = body?.description;
@@ -59,6 +68,8 @@ export async function POST(request: NextRequest) {
       company: typeof company === "string" ? company : undefined,
       sector: typeof sector === "string" ? sector : undefined,
       stage: VALID_STAGES.includes(stage) ? stage : undefined,
+      geography: typeof geography === "string" ? geography : undefined,
+      businessModel: typeof businessModel === "string" ? businessModel : undefined,
       amountRequested:
         typeof amountRequested === "number" && !Number.isNaN(amountRequested)
           ? amountRequested
