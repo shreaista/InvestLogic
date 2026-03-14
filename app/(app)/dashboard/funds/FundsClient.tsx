@@ -162,11 +162,14 @@ export default function FundsClient({ funds: initialFunds, fundMandatesEnabled, 
   const router = useRouter();
   const { toast } = useToast();
   const [funds, setFunds] = useState<Fund[]>(initialFunds);
+  const clientDataAuthoritativeRef = useRef(false);
 
   const loadFunds = useCallback(async () => {
     const result = await fetchFunds();
     if (result.ok && result.funds) {
       setFunds(result.funds);
+      clientDataAuthoritativeRef.current = true;
+      console.log("[Funds] Client fetch applied, count:", result.funds.length, "client data now authoritative");
       return true;
     }
     console.error("[Funds] List reload failed:", result.error);
@@ -174,9 +177,12 @@ export default function FundsClient({ funds: initialFunds, fundMandatesEnabled, 
   }, []);
 
   useEffect(() => {
-    console.log("[Funds] Initial funds from server, count:", initialFunds.length, "ids:", initialFunds.map((f) => f.id));
-    // Sync server props to client state when router.refresh() updates initialFunds
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional sync of RSC props
+    if (clientDataAuthoritativeRef.current) {
+      console.log("[Funds] Skipping prop sync - client data is authoritative");
+      return;
+    }
+    console.log("[Funds] Initial props applied, count:", initialFunds.length, "ids:", initialFunds.map((f) => f.id));
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional sync of RSC props when client has not loaded
     setFunds(initialFunds);
   }, [initialFunds]);
   const [view, setView] = useState<"grid" | "table">("grid");
@@ -328,6 +334,7 @@ export default function FundsClient({ funds: initialFunds, fundMandatesEnabled, 
         setIsCreateFundOpen(false);
         setNewFund({ name: "", code: "" });
         setCreateFundError(null);
+        clientDataAuthoritativeRef.current = true;
         setFunds((prev) => [...prev, created]);
         const listOk = await loadFunds();
         if (!listOk) {
