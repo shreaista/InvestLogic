@@ -19,11 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ArrowLeft, Loader2, AlertCircle, X } from "lucide-react";
-import {
-  fetchFundsFromApi,
-  filterActiveFundsForProposal,
-  type FundOption,
-} from "@/lib/api/funds";
+import { fetchFundsFromApi, type FundOption } from "@/lib/api/funds";
 import type { Fund } from "@/lib/mock/fundsStore";
 
 const STAGES = [
@@ -58,11 +54,11 @@ export default function NewProposalClient({ initialFunds }: NewProposalClientPro
   const { toast } = useToast();
   const clientDataAuthoritativeRef = useRef(false);
 
-  const activeFromInitial = useMemo(
-    () => filterActiveFundsForProposal(initialFunds as FundOption[]),
+  const fundsFromSSR = useMemo(
+    () => (initialFunds as FundOption[]),
     [initialFunds]
   );
-  const [funds, setFunds] = useState<FundOption[]>(() => activeFromInitial);
+  const [funds, setFunds] = useState<FundOption[]>(() => fundsFromSSR);
   const [fundsLoading, setFundsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -85,21 +81,19 @@ export default function NewProposalClient({ initialFunds }: NewProposalClientPro
     setFundsLoading(true);
     const result = await fetchFundsFromApi();
     if (result.ok && result.funds) {
-      const active = filterActiveFundsForProposal(result.funds);
-      const dropdownOptions = active.map((f) => ({ id: f.id, name: f.name, code: f.code }));
+      const list = result.funds;
+      const dropdownOptions = list.map((f) => (f.code ? `${f.name} (${f.code})` : f.name));
       console.log(
         "[NewProposal] Client fetch: endpoint /api/tenant/funds, raw count:",
-        result.funds.length,
-        "active count:",
-        active.length,
+        list.length,
         "dropdown options:",
         dropdownOptions
       );
-      if (active.length > 0) {
-        setFunds(active);
+      if (list.length > 0) {
+        setFunds(list);
         clientDataAuthoritativeRef.current = true;
       } else {
-        console.warn("[NewProposal] Client fetch returned 0 active funds, keeping SSR data to avoid overwriting with empty");
+        console.warn("[NewProposal] Client fetch returned 0 funds, keeping SSR data");
       }
     } else {
       console.warn("[NewProposal] Client fetch failed, keeping existing funds. Error:", result.error);
@@ -108,18 +102,17 @@ export default function NewProposalClient({ initialFunds }: NewProposalClientPro
   }, []);
 
   useEffect(() => {
+    const opts = fundsFromSSR.map((f) => (f.code ? `${f.name} (${f.code})` : f.name));
     console.log(
-      "[NewProposal] Initial funds from SSR: count:",
+      "[NewProposal] SSR funds: raw count:",
       initialFunds.length,
-      "active:",
-      activeFromInitial.length,
-      "ids:",
-      activeFromInitial.map((f) => f.id)
+      "dropdown options:",
+      opts
     );
-    if (!clientDataAuthoritativeRef.current) {
-      setFunds(activeFromInitial);
+    if (!clientDataAuthoritativeRef.current && fundsFromSSR.length > 0) {
+      setFunds(fundsFromSSR);
     }
-  }, [initialFunds, activeFromInitial]);
+  }, [initialFunds, fundsFromSSR]);
 
   useEffect(() => {
     loadFunds();
@@ -384,7 +377,7 @@ export default function NewProposalClient({ initialFunds }: NewProposalClientPro
                   </SelectContent>
                 </Select>
                 {funds.length === 0 && !fundsLoading && (
-                  <p className="text-sm text-muted-foreground">No active funds available. Create a fund first.</p>
+                  <p className="text-sm text-muted-foreground">No funds available. Create a fund on the Funds page first.</p>
                 )}
                 {fieldErrors.fundId && (
                   <p className="text-sm text-destructive flex items-center gap-1">

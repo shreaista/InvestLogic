@@ -26,7 +26,7 @@ export async function fetchFundsFromApi(): Promise<FetchFundsResult> {
     const data = await res.json();
     const rawFunds = data.data?.funds;
     const rawCount = Array.isArray(rawFunds) ? rawFunds.length : 0;
-    console.log("[fundsApi] Response status:", res.status, "raw funds count:", rawCount);
+    console.log("[fundsApi] Raw funds returned:", rawCount, "items:", rawFunds?.map((f: FundOption) => ({ id: f.id, name: f.name, code: f.code, status: f.status })));
 
     if (!data.ok || !Array.isArray(rawFunds)) {
       const errMsg = data.error || "Failed to load funds";
@@ -43,11 +43,16 @@ export async function fetchFundsFromApi(): Promise<FetchFundsResult> {
 }
 
 /**
- * Returns funds suitable for proposal dropdown: active only, or all if status is missing.
- * Matches Funds page display logic - if Funds page can show them, we show them.
+ * Returns funds for proposal dropdown. Same logic as Funds page:
+ * - Include if status is "active" (case-insensitive)
+ * - Include if status is missing/undefined
+ * - Exclude only explicit "inactive"
  */
 export function filterActiveFundsForProposal(funds: FundOption[]): FundOption[] {
-  return funds.filter(
+  const filtered = funds.filter(
     (f) => !f.status || String(f.status).toLowerCase() === "active"
   );
+  console.log("[fundsApi] Filtered active funds:", filtered.length, "from", funds.length, "dropdown options:", filtered.map((f) => (f.code ? `${f.name} (${f.code})` : f.name)));
+  return filtered;
 }
+
