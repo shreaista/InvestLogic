@@ -135,28 +135,7 @@ interface FundsClientProps {
   mandates: FundMandateTemplate[];
 }
 
-const FUNDS_API_URL = "/api/tenant/funds";
-
-async function fetchFunds(): Promise<{ ok: boolean; funds?: Fund[]; error?: string }> {
-  console.log("[Funds] List load started, endpoint:", FUNDS_API_URL);
-  try {
-    const res = await fetch(FUNDS_API_URL, { credentials: "include" });
-    const data = await res.json();
-    const rawFunds = data.data?.funds;
-    const itemsLength = Array.isArray(rawFunds) ? rawFunds.length : 0;
-    console.log("[Funds] List load response status:", res.status, "raw items length:", itemsLength, "body:", JSON.stringify(data));
-    if (data.ok && Array.isArray(rawFunds)) {
-      console.log("[Funds] Funds loaded, count:", rawFunds.length);
-      return { ok: true, funds: rawFunds };
-    }
-    const errMsg = data.error || "Failed to load funds";
-    console.error("[Funds] List load failed:", res.status, errMsg);
-    return { ok: false, error: errMsg };
-  } catch (err) {
-    console.error("[Funds] List load network error:", err);
-    return { ok: false, error: "Network error" };
-  }
-}
+import { loadFunds as loadFundsFromApi, FUNDS_API_URL } from "@/lib/funds/loadFunds";
 
 export default function FundsClient({ funds: initialFunds, fundMandatesEnabled, canManageFundMandates, mandates }: FundsClientProps) {
   const router = useRouter();
@@ -165,7 +144,7 @@ export default function FundsClient({ funds: initialFunds, fundMandatesEnabled, 
   const clientDataAuthoritativeRef = useRef(false);
 
   const loadFunds = useCallback(async () => {
-    const result = await fetchFunds();
+    const result = await loadFundsFromApi();
     if (result.ok && result.funds) {
       setFunds(result.funds);
       clientDataAuthoritativeRef.current = true;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/toast";
@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ArrowLeft, Loader2, AlertCircle, X } from "lucide-react";
-import { fetchFundsFromApi, type FundOption } from "@/lib/api/funds";
+import { loadFunds as loadFundsFromApi } from "@/lib/funds/loadFunds";
 import type { Fund } from "@/lib/mock/fundsStore";
 
 const STAGES = [
@@ -54,11 +54,7 @@ export default function NewProposalClient({ initialFunds }: NewProposalClientPro
   const { toast } = useToast();
   const clientDataAuthoritativeRef = useRef(false);
 
-  const fundsFromSSR = useMemo(
-    () => (initialFunds as FundOption[]),
-    [initialFunds]
-  );
-  const [funds, setFunds] = useState<FundOption[]>(() => fundsFromSSR);
+  const [funds, setFunds] = useState<Fund[]>(initialFunds);
   const [fundsLoading, setFundsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -79,40 +75,29 @@ export default function NewProposalClient({ initialFunds }: NewProposalClientPro
 
   const loadFunds = useCallback(async () => {
     setFundsLoading(true);
-    const result = await fetchFundsFromApi();
+    const result = await loadFundsFromApi();
     if (result.ok && result.funds) {
       const list = result.funds;
       const dropdownOptions = list.map((f) => (f.code ? `${f.name} (${f.code})` : f.name));
       console.log(
-        "[NewProposal] Client fetch: endpoint /api/tenant/funds, raw count:",
+        "[NewProposal] Client loadFunds: raw count:",
         list.length,
         "dropdown options:",
         dropdownOptions
       );
-      if (list.length > 0) {
-        setFunds(list);
-        clientDataAuthoritativeRef.current = true;
-      } else {
-        console.warn("[NewProposal] Client fetch returned 0 funds, keeping SSR data");
-      }
+      setFunds(list);
+      clientDataAuthoritativeRef.current = true;
     } else {
-      console.warn("[NewProposal] Client fetch failed, keeping existing funds. Error:", result.error);
+      console.warn("[NewProposal] loadFunds failed, keeping existing. Error:", result.error);
     }
     setFundsLoading(false);
   }, []);
 
   useEffect(() => {
-    const opts = fundsFromSSR.map((f) => (f.code ? `${f.name} (${f.code})` : f.name));
-    console.log(
-      "[NewProposal] SSR funds: raw count:",
-      initialFunds.length,
-      "dropdown options:",
-      opts
-    );
-    if (!clientDataAuthoritativeRef.current && fundsFromSSR.length > 0) {
-      setFunds(fundsFromSSR);
-    }
-  }, [initialFunds, fundsFromSSR]);
+    if (clientDataAuthoritativeRef.current) return;
+    console.log("[NewProposal] SSR initialFunds applied, count:", initialFunds.length, "ids:", initialFunds.map((f) => f.id));
+    setFunds(initialFunds);
+  }, [initialFunds]);
 
   useEffect(() => {
     loadFunds();
@@ -377,7 +362,7 @@ export default function NewProposalClient({ initialFunds }: NewProposalClientPro
                   </SelectContent>
                 </Select>
                 {funds.length === 0 && !fundsLoading && (
-                  <p className="text-sm text-muted-foreground">No funds available. Create a fund on the Funds page first.</p>
+                  <p className="text-sm text-muted-foreground">No active funds available. Create a fund first.</p>
                 )}
                 {fieldErrors.fundId && (
                   <p className="text-sm text-destructive flex items-center gap-1">
