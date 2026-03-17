@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ArrowLeft, Loader2, AlertCircle, X } from "lucide-react";
-import { loadFunds as loadFundsFromApi } from "@/lib/funds/loadFunds";
+import { loadFunds as loadFundsFromApi, filterActiveFunds } from "@/lib/funds/loadFunds";
 import type { Fund } from "@/lib/mock/fundsStore";
 
 const STAGES = [
@@ -54,7 +54,9 @@ export default function NewProposalClient({ initialFunds }: NewProposalClientPro
   const { toast } = useToast();
   const clientDataAuthoritativeRef = useRef(false);
 
-  const [funds, setFunds] = useState<Fund[]>(initialFunds);
+  const activeFromInitial = filterActiveFunds(initialFunds);
+  const [funds, setFunds] = useState<Fund[]>(activeFromInitial);
+  const [rawFundsCount, setRawFundsCount] = useState(initialFunds.length);
   const [fundsLoading, setFundsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -77,16 +79,19 @@ export default function NewProposalClient({ initialFunds }: NewProposalClientPro
     setFundsLoading(true);
     const result = await loadFundsFromApi();
     if (result.ok && result.funds) {
-      const list = result.funds;
-      const dropdownOptions = list.map((f) => (f.code ? `${f.name} (${f.code})` : f.name));
+      const rawList = result.funds;
+      const activeList = filterActiveFunds(rawList);
+      setRawFundsCount(rawList.length);
+      setFunds(activeList);
+      clientDataAuthoritativeRef.current = true;
       console.log(
         "[NewProposal] Client loadFunds: raw count:",
-        list.length,
-        "dropdown options:",
-        dropdownOptions
+        rawList.length,
+        "active count:",
+        activeList.length,
+        "option labels:",
+        activeList.map((f) => (f.code ? `${f.name} (${f.code})` : f.name))
       );
-      setFunds(list);
-      clientDataAuthoritativeRef.current = true;
     } else {
       console.warn("[NewProposal] loadFunds failed, keeping existing. Error:", result.error);
     }
@@ -94,14 +99,15 @@ export default function NewProposalClient({ initialFunds }: NewProposalClientPro
   }, []);
 
   useEffect(() => {
-    if (clientDataAuthoritativeRef.current) return;
-    console.log("[NewProposal] SSR initialFunds applied, count:", initialFunds.length, "ids:", initialFunds.map((f) => f.id));
-    setFunds(initialFunds);
-  }, [initialFunds]);
-
-  useEffect(() => {
     loadFunds();
   }, [loadFunds]);
+
+  useEffect(() => {
+    if (clientDataAuthoritativeRef.current) return;
+    console.log("[NewProposal] SSR initialFunds applied, count:", initialFunds.length, "ids:", initialFunds.map((f) => f.id));
+    setRawFundsCount(initialFunds.length);
+    setFunds(filterActiveFunds(initialFunds));
+  }, [initialFunds]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(e.target.files ?? []);
@@ -361,9 +367,16 @@ export default function NewProposalClient({ initialFunds }: NewProposalClientPro
                     ))}
                   </SelectContent>
                 </Select>
-                {funds.length === 0 && !fundsLoading && (
+                {rawFundsCount === 0 && !fundsLoading && (
                   <p className="text-sm text-muted-foreground">No active funds available. Create a fund first.</p>
                 )}
+                <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
+                  <span>raw: {rawFundsCount}</span>
+                  <span className="mx-2">|</span>
+                  <span>active: {funds.length}</span>
+                  <span className="mx-2">|</span>
+                  <span>labels: [{funds.map((f) => (f.code ? `${f.name} (${f.code})` : f.name)).join(", ")}]</span>
+                </div>
                 {fieldErrors.fundId && (
                   <p className="text-sm text-destructive flex items-center gap-1">
                     <AlertCircle className="h-4 w-4 shrink-0" />
