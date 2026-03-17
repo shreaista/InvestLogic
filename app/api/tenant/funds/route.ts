@@ -6,8 +6,9 @@ import {
   jsonError,
 } from "@/lib/authz";
 import { listFunds, createFund, type CreateFundInput } from "@/lib/mock/fundsStore";
+import { FUNDS_FILE_PATH } from "@/lib/storage/fundsPersistence";
 
-const STORAGE_SOURCE = "fundsStore (in-memory array)";
+const STORAGE_SOURCE = `fundsStore (durable JSON: ${FUNDS_FILE_PATH})`;
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,7 +17,17 @@ export async function GET(request: NextRequest) {
     const tenantId = requireTenant(user);
 
     const funds = listFunds(tenantId);
-    console.log("[Funds API] GET list, tenantId:", tenantId, "source:", STORAGE_SOURCE, "count:", funds.length, "ids:", funds.map((f) => f.id), "names:", funds.map((f) => f.name));
+    const rawCount = funds.length;
+    const fundIds = funds.map((f) => f.id);
+    const fundNames = funds.map((f) => f.name);
+
+    console.log("[Funds API] GET", {
+      tenantId,
+      source: STORAGE_SOURCE,
+      rawCount,
+      fundIds,
+      fundNames,
+    });
 
     const debug = request.nextUrl.searchParams.get("debug") === "1";
     if (debug) {
@@ -24,8 +35,8 @@ export async function GET(request: NextRequest) {
         ok: true,
         tenantId,
         source: STORAGE_SOURCE,
-        count: funds.length,
-        items: funds.map((f) => ({ id: f.id, name: f.name, code: f.code, status: f.status })),
+        count: rawCount,
+        funds: funds.map((f) => ({ id: f.id, name: f.name, code: f.code, status: f.status })),
       });
     }
 
@@ -47,8 +58,13 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const name = body?.name;
     const code = body?.code;
+    const incomingPayload = { name, code };
 
-    console.log("[Funds API] POST create, tenantId:", tenantId, "raw name:", JSON.stringify(name), "raw code:", JSON.stringify(code));
+    console.log("[Funds API] POST", {
+      tenantId,
+      incomingPayload,
+      storageDestination: FUNDS_FILE_PATH,
+    });
 
     const result = createFund(tenantId, { name, code } as CreateFundInput);
 
@@ -65,7 +81,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log("[Funds API] POST create success, id:", result.fund?.id, "name:", result.fund?.name);
+    const createdFundId = result.fund?.id;
+    const createdFundName = result.fund?.name;
+    const persistedCount = listFunds(tenantId).length;
+
+    console.log("[Funds API] POST success", {
+      tenantId,
+      createdFundId,
+      createdFundName,
+      storageDestination: FUNDS_FILE_PATH,
+      persistedTotalCount: persistedCount,
+    });
+
     return NextResponse.json({
       ok: true,
       data: { fund: result.fund },

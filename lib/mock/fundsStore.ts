@@ -1,5 +1,10 @@
 import "server-only";
 import { productionMode } from "@/lib/config/productionMode";
+import {
+  loadFundsFromFileSync,
+  saveFundsToFileSync,
+  type FundsPersistenceData,
+} from "@/lib/storage/fundsPersistence";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -153,6 +158,29 @@ const SEED_FUND_IDS = new Set([
   "F-002",
 ]);
 
+/** Load user-created funds from durable storage and merge into in-memory array. */
+function initFundsFromFile(): void {
+  const data = loadFundsFromFileSync();
+  // Remove existing user-created from funds (keep seed only)
+  for (let i = funds.length - 1; i >= 0; i--) {
+    if (!SEED_FUND_IDS.has(funds[i].id)) {
+      funds.splice(i, 1);
+    }
+  }
+  // Add user-created from file
+  for (const f of data.userCreated) {
+    funds.push(f);
+  }
+  nextFundId = data.nextFundId;
+}
+
+/** Persist user-created funds to durable storage. */
+function persistFunds(): void {
+  const userCreated = funds.filter((f) => !SEED_FUND_IDS.has(f.id));
+  const data: FundsPersistenceData = { userCreated, nextFundId };
+  saveFundsToFileSync(data);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Fund CRUD Operations
 // ─────────────────────────────────────────────────────────────────────────────
@@ -173,10 +201,12 @@ function normalizeForComparison(s: string | undefined): string {
 }
 
 export function listFunds(tenantId: string): Fund[] {
+  initFundsFromFile();
   return getFundsForTenant(tenantId);
 }
 
 export function getFundById(tenantId: string, fundId: string): Fund | undefined {
+  initFundsFromFile();
   return funds.find((f) => f.id === fundId && f.tenantId === tenantId);
 }
 
@@ -202,6 +232,7 @@ export function createFund(
   tenantId: string,
   input: CreateFundInput
 ): CreateFundResult {
+  initFundsFromFile();
   const rawName = typeof input.name === "string" ? input.name : String(input?.name ?? "");
   const rawCode = input.code != null ? (typeof input.code === "string" ? input.code : String(input.code)) : undefined;
 
@@ -264,6 +295,7 @@ export function createFund(
   };
 
   funds.push(newFund);
+  persistFunds();
   console.log("[fundsStore] Fund created:", { id: newFund.id, name: newFund.name, code: newFund.code, tenantId });
   return { ok: true, fund: newFund };
 }
@@ -279,6 +311,7 @@ export function updateFund(
   fundId: string,
   input: UpdateFundInput
 ): UpdateFundResult {
+  initFundsFromFile();
   const fund = funds.find((f) => f.id === fundId && f.tenantId === tenantId);
   if (!fund) {
     return { ok: false, error: "Fund not found" };
@@ -309,10 +342,14 @@ export function updateFund(
   }
 
   fund.updatedAt = new Date().toISOString();
+  if (!SEED_FUND_IDS.has(fundId)) {
+    persistFunds();
+  }
   return { ok: true, fund };
 }
 
 export function deleteFund(tenantId: string, fundId: string): boolean {
+  initFundsFromFile();
   const index = funds.findIndex((f) => f.id === fundId && f.tenantId === tenantId);
   if (index === -1) {
     return false;
@@ -328,6 +365,9 @@ export function deleteFund(tenantId: string, fundId: string): boolean {
     fundMandateLinks.splice(i, 1);
   }
 
+  if (!SEED_FUND_IDS.has(fundId)) {
+    persistFunds();
+  }
   return true;
 }
 
@@ -357,6 +397,7 @@ export function linkMandateToFund(
   mandateId: string,
   userId: string
 ): LinkMandateResult {
+  initFundsFromFile();
   const fund = funds.find((f) => f.id === fundId && f.tenantId === tenantId);
   if (!fund) {
     return { ok: false, error: "Fund not found" };
