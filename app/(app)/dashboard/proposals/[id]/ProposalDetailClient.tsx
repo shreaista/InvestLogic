@@ -878,10 +878,10 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
         <p className="text-xs font-medium text-muted-foreground mb-2">Proposal evaluation flow</p>
         <ol className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground list-decimal list-inside">
           <li>Select Fund</li>
-          <li>Review linked Mandates</li>
+          <li>Review Mandate Files</li>
           <li>Upload Proposal Documents</li>
-          <li>Run Evaluation</li>
-          <li>Generate Report</li>
+          <li>Evaluate Proposal</li>
+          <li>Generate Evaluation Report</li>
         </ol>
       </div>
 
@@ -934,12 +934,13 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
               </StatusBadge>
             </div>
             <div className="space-y-2">
-              <p className="text-sm font-medium">Linked Fund</p>
+              <p className="text-sm font-medium">Selected Fund</p>
               {proposal.fund ? (
-                <p className="text-sm text-muted-foreground">Linked Fund: {proposal.fund}</p>
+                <p className="text-sm text-muted-foreground">{proposal.fund}</p>
               ) : (
-                <p className="text-sm text-amber-600">Select a Fund to link this proposal before evaluation.</p>
+                <p className="text-sm text-amber-600">Select a fund before evaluation.</p>
               )}
+              <p className="text-xs text-muted-foreground">This is the fund against which the proposal will be evaluated.</p>
             </div>
             <div className="space-y-2 overflow-visible pt-1">
               <p className="text-sm font-medium">Select Fund to view mandates</p>
@@ -961,7 +962,7 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
               </Select>
             </div>
             <div className="pt-2">
-              <p className="text-sm font-medium mb-2">Priority</p>
+              <p className="text-sm font-medium mb-2">Review Priority</p>
               <StatusBadge
                 variant={
                   proposal.priority === "High" ? "error" :
@@ -974,10 +975,11 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
             <div className="flex items-start gap-3">
               <User className="h-5 w-5 text-muted-foreground mt-0.5" />
               <div>
-                <p className="text-sm font-medium">Assigned To</p>
+                <p className="text-sm font-medium">Reviewer</p>
                 <p className="text-sm text-muted-foreground">
                   {proposal.assignedToName || "Not assigned"}
                 </p>
+                <p className="text-xs text-muted-foreground">Optional. Assign a reviewer if needed.</p>
               </div>
             </div>
             {proposal.dueDate && (
@@ -993,11 +995,11 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
         </Card>
       </div>
 
-      {/* Linked Mandates Panel - shows when a fund is selected */}
+      {/* Mandate Files Panel - shows when a fund is selected */}
       {selectedFundId && (
         <DataCard
-          title={`Linked Mandates: ${funds.find(f => f.id === selectedFundId)?.name || "Selected Fund"}`}
-          description="Mandate files linked to this fund are used to evaluate proposals"
+          title={`Mandate Files for This Fund: ${funds.find(f => f.id === selectedFundId)?.name || "Selected Fund"}`}
+          description="These files define the investment criteria used during evaluation."
         >
           {loadingFundMandates ? (
             <div className="flex items-center justify-center py-8">
@@ -1050,11 +1052,12 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
         </DataCard>
       )}
 
-      {/* Assignments Panel - Tenant Admin Only */}
+      {/* Optional workflow section */}
       {canAssign && (
         <DataCard
-          title="Proposal Assignment"
-          description="Assign this proposal to an assessor or queue"
+          title="Review Queue & Reviewer"
+          description="Optional. Use this only for team workflow."
+          className="border-dashed border-amber-200/60 bg-amber-50/30"
         >
           {/* Current Assignment */}
           {assignment && (assignment.assignedToUserId || assignment.assignedQueueId) && (
@@ -1095,7 +1098,7 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
               onClick={() => setAssignmentMode("user")}
             >
               <User className="h-4 w-4 mr-1" />
-              Assign to Assessor
+              Assign Reviewer
             </Button>
             <Button
               variant={assignmentMode === "queue" ? "default" : "outline"}
@@ -1103,7 +1106,7 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
               onClick={() => setAssignmentMode("queue")}
             >
               <Users className="h-4 w-4 mr-1" />
-              Assign to Queue
+              Assign to Review Queue
             </Button>
           </div>
 
@@ -1111,7 +1114,7 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
           <div className="flex items-end gap-3">
             {assignmentMode === "user" ? (
               <div className="flex-1">
-                <label className="text-sm font-medium mb-1.5 block">Select Assessor</label>
+                <label className="text-sm font-medium mb-1.5 block">Select Reviewer</label>
                 <select
                   className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   value={selectedAssessor}
@@ -1127,7 +1130,8 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
               </div>
             ) : (
               <div className="flex-1">
-                <label className="text-sm font-medium mb-1.5 block">Select Queue</label>
+                <label className="text-sm font-medium mb-1.5 block">Select Review Queue</label>
+                <p className="text-xs text-muted-foreground mb-1">Optional. Use this only for team workflow.</p>
                 <select
                   className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   value={selectedQueue}
@@ -1158,9 +1162,9 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
         </DataCard>
       )}
 
-      {/* Fund Mandate Used Card */}
+      {/* Mandate Used for Evaluation Card */}
       <DataCard
-        title="Fund Mandate Used"
+        title="Mandate Used for Evaluation"
         description={mandate ? `Mandate template for ${proposal.fund}` : undefined}
         noPadding={!mandateLoading && !mandateError && !!mandate}
       >
@@ -1466,7 +1470,7 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
               ) : (
                 <Play className="h-4 w-4 mr-1" />
               )}
-              Run Evaluation
+              Evaluate Proposal
             </Button>
             {/* Report Generation Buttons */}
             {displayedEvaluation ? (
@@ -1483,7 +1487,7 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
                   ) : (
                     <FileOutput className="h-4 w-4 mr-1" />
                   )}
-                  Generate Report
+                  Generate Evaluation Report
                 </Button>
                 {latestMemoBlobPath && (
                   <Button
@@ -1506,7 +1510,7 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
                   className="border-muted-foreground/30 opacity-60 cursor-not-allowed"
                 >
                   <FileOutput className="h-4 w-4 mr-1" />
-                  Generate Report
+                  Generate Evaluation Report
                 </Button>
                 <span className="hidden sm:inline">Run evaluation first to generate a report.</span>
               </div>

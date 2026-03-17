@@ -4,10 +4,11 @@ import "server-only";
 //
 // Abstraction layer for document text extraction.
 // Uses Python extractor service when available (better extraction quality).
-// Falls back to Node.js extraction helpers if Python service is unavailable.
+// Falls back to Node.js extraction for DOCX only. PDF fallback is disabled
+// because pdf-parse can use browser-only APIs (DOMMatrix) in some bundling contexts.
 
 import { downloadBlob, getDefaultContainer } from "@/lib/storage/azureBlob";
-import { extractDocxText, extractPdfText } from "@/lib/textExtractor";
+import { extractDocxText } from "@/lib/textExtractor";
 import { extractDocumentViaPython } from "./pythonExtractionClient";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -156,17 +157,17 @@ export async function extractDocumentFromBlob(
   const usePythonFirst = shouldUsePythonExtraction(fileType, fileName || displayName);
 
   if (usePythonFirst) {
-    console.log(`[extractDocumentFromBlob] Python extraction branch entered for ${displayName}`);
+    console.log(`[extractDocumentFromBlob] Python extraction attempted for ${displayName}`);
     console.log(`[extractDocumentFromBlob] fileType=${fileType}, extension=${extension}, hasConnectionString=${!!connectionString}`);
 
     if (!connectionString) {
       const reason = "AZURE_STORAGE_CONNECTION_STRING not set";
-      console.log(`[extractDocumentFromBlob] Python extraction failed for ${displayName}, fallback reason: ${reason}`);
-      warnings.push(`Python extractor failed for ${displayName}; fallback used`);
+      console.log(`[extractDocumentFromBlob] Python extraction failed for ${displayName}, reason: ${reason}`);
+      warnings.push(`Python extractor failed for ${displayName}; fallback attempted`);
     } else if (!process.env.PYTHON_EXTRACTOR_URL) {
       const reason = "PYTHON_EXTRACTOR_URL not configured";
-      console.log(`[extractDocumentFromBlob] Python extraction failed for ${displayName}, fallback reason: ${reason}`);
-      warnings.push(`Python extractor failed for ${displayName}; fallback used`);
+      console.log(`[extractDocumentFromBlob] Python extraction failed for ${displayName}, reason: ${reason}`);
+      warnings.push(`Python extractor failed for ${displayName}; fallback attempted`);
     } else {
       console.log(`[extractDocumentFromBlob] Calling Python extractor for: ${displayName}`);
 
@@ -190,8 +191,8 @@ export async function extractDocumentFromBlob(
 
       // Python extraction failed or returned empty - log and fallback
       const reason = pythonResult.error || "empty/invalid response";
-      console.log(`[extractDocumentFromBlob] Python extraction failed for ${displayName}, fallback reason: ${reason}`);
-      warnings.push(`Python extractor failed for ${displayName}; fallback used`);
+      console.log(`[extractDocumentFromBlob] Python extraction failed for ${displayName}, reason: ${reason}`);
+      warnings.push(`Python extractor failed for ${displayName}; fallback attempted`);
     }
   } else {
     console.log(
@@ -199,13 +200,30 @@ export async function extractDocumentFromBlob(
     );
   }
 
-  // Fallback: Download blob and use Node.js extraction
-  let buffer: Buffer;
+  // Fallback: Download blob and use Node.js extraction (DOCX only; PDF fallback disabled - uses browser APIs)
+  const isPdf = fileType === "application/pdf" || extension === ".pdf";
+  const isDocx =
+    fileType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    extension === ".docx";
 
+  // PDF: No server-safe fallback (pdf-parse can use DOMMatrix in some contexts). Return clean warning.
+  if (isPdf) {
+    console.log(`[extractDocumentFromBlob] Fallback attempted for PDF ${displayName} - no server-safe PDF fallback available`);
+    console.log(`[extractDocumentFromBlob] Fallback failed for ${displayName}: PDF extraction requires Python extractor`);
+    return {
+      text: "",
+      warnings: ["PDF text extraction could not be completed for this file."],
+      charactersProcessed: 0,
+    };
+  }
+
+  let buffer: Buffer;
   try {
     const result = await downloadBlob(container, blobPath);
     if (!result) {
-      warnings.push(`Fallback extraction failed for ${displayName}: could not download from storage`);
+      console.log(`[extractDocumentFromBlob] Fallback attempted for ${displayName} - could not download from storage`);
+      console.log(`[extractDocumentFromBlob] Fallback failed for ${displayName}: could not download from storage`);
+      warnings.push("Text extraction could not be completed for this file.");
       return {
         text: "",
         warnings,
@@ -216,7 +234,8 @@ export async function extractDocumentFromBlob(
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     console.error("[extractDocumentFromBlob] Download error:", error);
-    warnings.push(`Fallback extraction failed for ${displayName}: ${errorMessage}`);
+    console.log(`[extractDocumentFromBlob] Fallback failed for ${displayName}: ${errorMessage}`);
+    warnings.push("Text extraction could not be completed for this file.");
     return {
       text: "",
       warnings,
@@ -224,41 +243,20 @@ export async function extractDocumentFromBlob(
     };
   }
 
-  // Extract text based on file type using Node.js (with proper error handling)
-  const isPdf = fileType === "application/pdf" || extension === ".pdf";
-  const isDocx =
-    fileType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
-    extension === ".docx";
-
+  // DOCX and plain text: use Node.js extraction (server-safe)
   try {
     let text: string;
 
     if (SUPPORTED_TEXT_TYPES.includes(fileType)) {
-      // Plain text files
       text = buffer.toString("utf-8");
-    } else if (isPdf) {
-      // PDF extraction via Node (wrapped in try/catch to handle DOMMatrix and other errors)
-      console.log(`[extractDocumentFromBlob] Using Node PDF fallback extraction for: ${displayName}`);
-      try {
-        text = await extractPdfText(buffer);
-      } catch (pdfError) {
-        const pdfErrorMessage = pdfError instanceof Error ? pdfError.message : "Unknown PDF error";
-        console.error(`[extractDocumentFromBlob] Node PDF extraction failed for ${displayName}:`, pdfError);
-        warnings.push(`Fallback extraction failed for ${displayName}: ${pdfErrorMessage}`);
-        return {
-          text: "",
-          warnings,
-          charactersProcessed: 0,
-        };
-      }
     } else if (isDocx) {
-      // DOCX extraction via Node
-      console.log(`[extractDocumentFromBlob] Using Node DOCX fallback extraction for: ${displayName}`);
+      console.log(`[extractDocumentFromBlob] Fallback attempted for DOCX ${displayName}`);
       try {
         text = await extractDocxText(buffer);
+        console.log(`[extractDocumentFromBlob] Fallback extraction succeeded for ${displayName} (${text.length} chars)`);
       } catch (docxError) {
         const docxErrorMessage = docxError instanceof Error ? docxError.message : "Unknown DOCX error";
-        console.error(`[extractDocumentFromBlob] Node DOCX extraction failed for ${displayName}:`, docxError);
+        console.error(`[extractDocumentFromBlob] Fallback failed for ${displayName}:`, docxError);
         warnings.push(`Fallback extraction failed for ${displayName}: ${docxErrorMessage}`);
         return {
           text: "",
@@ -267,16 +265,13 @@ export async function extractDocumentFromBlob(
         };
       }
     } else {
+      console.log(`[extractDocumentFromBlob] Fallback failed for ${displayName}: no extraction handler for file type ${fileType}`);
       warnings.push(`Fallback extraction failed for ${displayName}: no extraction handler for file type ${fileType}`);
       return {
         text: "",
         warnings,
         charactersProcessed: 0,
       };
-    }
-
-    if (text && text.length > 0) {
-      console.log(`[extractDocumentFromBlob] Fallback extraction succeeded for ${displayName} (${text.length} chars)`);
     }
 
     return {
@@ -287,6 +282,7 @@ export async function extractDocumentFromBlob(
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     console.error("[extractDocumentFromBlob] Extraction error:", error);
+    console.log(`[extractDocumentFromBlob] Fallback failed for ${displayName}: ${errorMessage}`);
     warnings.push(`Fallback extraction failed for ${displayName}: ${errorMessage}`);
     return {
       text: "",
