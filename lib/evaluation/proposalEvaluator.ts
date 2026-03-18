@@ -443,9 +443,10 @@ export async function runEvaluation(
     const extractedContent = await extractContentForEvaluation(mandateBlobs, proposalBlobs);
 
     // Step: Validate Proposal (runs before fund evaluation)
+    console.log("[proposalEvaluator] Proposal validation started");
     const validationSummary = await runProposalValidation(extractedContent.proposalText);
     console.log(
-      `[proposalEvaluator] Validation complete: score=${validationSummary.validationScore}, step=${validationSummary.step}`
+      `[proposalEvaluator] Validation complete: score=${validationSummary.validationScore}, confidence=${validationSummary.confidence}, findings=${validationSummary.findings.length}`
     );
 
     // Log extraction results summary
@@ -456,6 +457,8 @@ export async function runEvaluation(
       extractedContent.extractionWarnings.push(mandateLoadFallbackReason);
     }
 
+    // Fund evaluation (mandate comparison)
+    console.log("[proposalEvaluator] Fund evaluation started");
     // Build RAG evaluation input using text chunking and relevance matching
     const ragEvalInput = buildRAGEvaluationInput(
       extractedContent.proposalText,
@@ -561,7 +564,11 @@ export async function runEvaluation(
 
         validationSummary: {
           validationScore: validationSummary.validationScore,
+          confidence: validationSummary.confidence,
+          summary: validationSummary.summary,
           step: validationSummary.step,
+          checks: validationSummary.checks,
+          findings: validationSummary.findings,
           heuristic: {
             signals: validationSummary.heuristic.signals,
             heuristicScoreAfterPenalties: validationSummary.heuristic.heuristicScoreAfterPenalties,
@@ -650,7 +657,11 @@ export async function runEvaluation(
 
         validationSummary: {
           validationScore: validationSummary.validationScore,
+          confidence: validationSummary.confidence,
+          summary: validationSummary.summary,
           step: validationSummary.step,
+          checks: validationSummary.checks,
+          findings: validationSummary.findings,
           heuristic: {
             signals: validationSummary.heuristic.signals,
             heuristicScoreAfterPenalties: validationSummary.heuristic.heuristicScoreAfterPenalties,
@@ -745,7 +756,11 @@ export async function runEvaluation(
 
       validationSummary: {
         validationScore: validationSummary.validationScore,
+        confidence: validationSummary.confidence,
+        summary: validationSummary.summary,
         step: validationSummary.step,
+        checks: validationSummary.checks,
+        findings: validationSummary.findings,
         heuristic: {
           signals: validationSummary.heuristic.signals,
           heuristicScoreAfterPenalties: validationSummary.heuristic.heuristicScoreAfterPenalties,
@@ -763,6 +778,7 @@ export async function runEvaluation(
     };
   }
 
+  console.log("[proposalEvaluator] Fund evaluation complete, saving report");
   // NEW: Save evaluation to blob storage
   const blobPath = await uploadEvaluationJson(tenantId, proposalId, report);
 

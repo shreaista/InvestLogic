@@ -90,21 +90,35 @@ export const EvaluationReportSchema = z.object({
   validationSummary: z
     .object({
       validationScore: z.number().min(0).max(100),
-      step: z.string(),
-      heuristic: z.object({
-        signals: z.object({
-          hasRevenue: z.boolean(),
-          hasForecast: z.boolean(),
-          hasForecast12m: z.boolean(),
-          hasForecast24m: z.boolean(),
-          hasForecast48m: z.boolean(),
-          stage: z.enum(["pre-revenue", "revenue", "growth", "unknown"]),
-          hasIP: z.boolean(),
-          hasCompetitors: z.boolean(),
-        }),
-        heuristicScoreAfterPenalties: z.number(),
-        penalties: z.array(z.string()),
-      }),
+      confidence: z.enum(["low", "medium", "high"]).optional(),
+      summary: z.string().optional(),
+      step: z.string().optional(),
+      checks: z
+        .record(
+          z.string(),
+          z.object({
+            status: z.enum(["found", "partial", "missing"]),
+            detail: z.string(),
+          })
+        )
+        .optional(),
+      findings: z.array(z.string()).optional(),
+      heuristic: z
+        .object({
+          signals: z.object({
+            hasRevenue: z.boolean(),
+            hasForecast: z.boolean(),
+            hasForecast12m: z.boolean(),
+            hasForecast24m: z.boolean(),
+            hasForecast48m: z.boolean(),
+            stage: z.enum(["pre-revenue", "revenue", "growth", "unknown"]),
+            hasIP: z.boolean(),
+            hasCompetitors: z.boolean(),
+          }),
+          heuristicScoreAfterPenalties: z.number(),
+          penalties: z.array(z.string()),
+        })
+        .optional(),
       llm: z
         .object({
           stage: z.enum(["pre-revenue", "revenue", "growth", "unknown"]),
@@ -112,7 +126,7 @@ export const EvaluationReportSchema = z.object({
           competitorPresence: z.enum(["identified", "mentioned", "none", "unknown"]),
         })
         .optional(),
-      warnings: z.array(z.string()),
+      warnings: z.array(z.string()).optional(),
     })
     .optional(),
 });

@@ -42,11 +42,22 @@ export interface ValidationHeuristicResult {
 }
 
 
+export type CheckStatus = "found" | "partial" | "missing";
+
+export interface ValidationCheck {
+  status: CheckStatus;
+  detail: string;
+}
+
 export interface ValidationSummary {
-  validationScore: number; // 0-100 combined
+  validationScore: number;
+  confidence: "low" | "medium" | "high";
+  summary: string;
+  step: "Validate Proposal";
+  checks: Record<string, ValidationCheck>;
+  findings: string[];
   heuristic: ValidationHeuristicResult;
   llm?: ValidationLLMResult;
-  step: "Validate Proposal";
   warnings: string[];
 }
 
@@ -257,6 +268,18 @@ export async function runProposalValidation(
   if (!proposalText || proposalText.trim().length < 50) {
     return {
       validationScore: 0,
+      confidence: "low",
+      summary: "Insufficient proposal text for validation.",
+      step: "Validate Proposal",
+      checks: {
+        revenue: { status: "missing", detail: "Insufficient text to analyze" },
+        forecast: { status: "missing", detail: "Insufficient text to analyze" },
+        stage: { status: "missing", detail: "Insufficient text to analyze" },
+        ip: { status: "missing", detail: "Insufficient text to analyze" },
+        competitors: { status: "missing", detail: "Insufficient text to analyze" },
+        businessModel: { status: "missing", detail: "Insufficient text to analyze" },
+      },
+      findings: ["Proposal text too short for validation"],
       heuristic: {
         signals: {
           hasRevenue: false,
@@ -272,7 +295,6 @@ export async function runProposalValidation(
         penalties: ["Insufficient proposal text for validation"],
         heuristicScoreAfterPenalties: 0,
       },
-      step: "Validate Proposal",
       warnings: ["Proposal text too short for validation"],
     };
   }
@@ -319,7 +341,6 @@ export async function runProposalValidation(
       if (llmRaw) {
         const llmScore = llmSignalsToScore(llmRaw);
         llmResult = { ...llmRaw, llmScore };
-        // Combine: 60% heuristic + 40% LLM
         validationScore = Math.round(
           heuristicScoreAfterPenalties * 0.6 + llmScore * 0.4
         );
@@ -334,11 +355,90 @@ export async function runProposalValidation(
     warnings.push("LLM not configured - validation uses heuristic only");
   }
 
+  // 3. Build checks object
+  const checks: Record<string, ValidationCheck> = {
+    revenue: signals.hasRevenue
+      ? { status: "found", detail: revenueResult.value ? `Revenue mentioned for past 12 months ($${revenueResult.value.toLocaleString()})` : "Revenue mentioned for past 12 months" }
+      : { status: "missing", detail: "No revenue data found" },
+    forecast: signals.hasForecast
+      ? signals.hasForecast12m && signals.hasForecast24m && signals.hasForecast48m
+        ? { status: "found", detail: "12, 24, and 48 month forecast found" }
+        : {
+            status: "partial",
+            detail: (() => {
+              const found: string[] = [];
+              if (signals.hasForecast12m) found.push("12 month");
+              if (signals.hasForecast24m) found.push("24 month");
+              if (signals.hasForecast48m) found.push("48 month");
+              const missing: string[] = [];
+              if (!signals.hasForecast12m) missing.push("12");
+              if (!signals.hasForecast24m) missing.push("24");
+              if (!signals.hasForecast48m) missing.push("48");
+              return `${found.join(", ")} forecast found; ${missing.join("/")} month forecast missing`;
+            })(),
+          }
+      : { status: "missing", detail: "No financial forecast (12/24/48 month) detected" },
+    stage: signals.stage !== "unknown"
+      ? { status: "found", detail: `${signals.stage.replace("-", " ")} stage detected` }
+      : { status: "missing", detail: "Stage not clearly identified" },
+    ip: signals.hasIP
+      ? { status: "found", detail: "Intellectual property or proprietary assets mentioned" }
+      : { status: "missing", detail: "No clear IP detail found" },
+    competitors: signals.hasCompetitors
+      ? llmResult?.competitorPresence === "identified"
+        ? { status: "found", detail: "Competitors identified with evidence" }
+        : { status: "partial", detail: "Competitors mentioned with limited evidence" }
+      : { status: "missing", detail: "No competitor info found" },
+    businessModel: llmResult
+      ? llmResult.businessModelClarity === "clear"
+        ? { status: "found", detail: "Business model clearly explained" }
+        : llmResult.businessModelClarity === "partial"
+          ? { status: "partial", detail: "Business model mentioned but not detailed" }
+          : { status: "missing", detail: "Business model unclear or not stated" }
+      : { status: "partial", detail: "Business model not assessed (LLM not configured)" },
+  };
+
+  // 4. Build findings from penalties and checks
+  const findings = [...penalties];
+  if (checks.forecast.status === "partial") findings.push("Forecast detail is incomplete");
+  if (checks.ip.status === "missing") findings.push("No clear IP position is stated");
+  if (checks.competitors.status === "missing") findings.push("Competitor analysis missing");
+  if (checks.businessModel.status === "missing" || checks.businessModel.status === "partial") {
+    if (!findings.some((f) => f.toLowerCase().includes("business model"))) {
+      findings.push("Business model clarity could be improved");
+    }
+  }
+  const uniqueFindings = [...new Set(findings)];
+
+  // 5. Build summary
+  const strongCount = Object.values(checks).filter((c) => c.status === "found").length;
+  const missingCount = Object.values(checks).filter((c) => c.status === "missing").length;
+  let summary: string;
+  if (missingCount >= 4) {
+    summary = "Proposal has significant gaps in key areas: revenue, forecast, IP, and competitor information are incomplete or missing.";
+  } else if (strongCount >= 4) {
+    summary = "Proposal has strong coverage of key validation areas. Minor gaps may exist in forecast or IP detail.";
+  } else {
+    summary = "Proposal has partial coverage. Some key areas (forecast, IP, competitors, or business model) need additional detail.";
+  }
+
+  // 6. Confidence based on LLM + text length
+  const confidence: "low" | "medium" | "high" =
+    llmResult && proposalText.length > 2000
+      ? "high"
+      : llmResult || proposalText.length > 500
+        ? "medium"
+        : "low";
+
   return {
     validationScore,
+    confidence,
+    summary,
+    step: "Validate Proposal",
+    checks,
+    findings: uniqueFindings,
     heuristic: heuristicResult,
     llm: llmResult,
-    step: "Validate Proposal",
     warnings,
   };
 }

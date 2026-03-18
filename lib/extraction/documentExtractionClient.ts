@@ -152,6 +152,7 @@ export async function extractDocumentFromBlob(
 
   const container = getDefaultContainer();
   const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING || "";
+  const isPdf = fileType === "application/pdf" || extension === ".pdf";
 
   // Try Python extractor first for PDF and DOCX files (check both MIME type and extension)
   const usePythonFirst = shouldUsePythonExtraction(fileType, fileName || displayName);
@@ -162,12 +163,12 @@ export async function extractDocumentFromBlob(
 
     if (!connectionString) {
       const reason = "AZURE_STORAGE_CONNECTION_STRING not set";
-      console.log(`[extractDocumentFromBlob] Python extraction failed for ${displayName}, reason: ${reason}`);
-      warnings.push(`Python extractor failed for ${displayName}; fallback attempted`);
+      console.log(`[extractDocumentFromBlob] Python extraction skipped for ${displayName}, reason: ${reason}`);
+      warnings.push(isPdf ? "PDF extraction requires Python extractor (pdfplumber). Configure AZURE_STORAGE_CONNECTION_STRING and PYTHON_EXTRACTOR_URL." : `Extraction skipped for ${displayName}.`);
     } else if (!process.env.PYTHON_EXTRACTOR_URL) {
       const reason = "PYTHON_EXTRACTOR_URL not configured";
-      console.log(`[extractDocumentFromBlob] Python extraction failed for ${displayName}, reason: ${reason}`);
-      warnings.push(`Python extractor failed for ${displayName}; fallback attempted`);
+      console.log(`[extractDocumentFromBlob] Python extraction skipped for ${displayName}, reason: ${reason}`);
+      warnings.push(isPdf ? "PDF extraction requires Python extractor (pdfplumber). Set PYTHON_EXTRACTOR_URL to your extractor service." : `Extraction skipped for ${displayName}.`);
     } else {
       console.log(`[extractDocumentFromBlob] Calling Python extractor for: ${displayName}`);
 
@@ -189,10 +190,10 @@ export async function extractDocumentFromBlob(
         };
       }
 
-      // Python extraction failed or returned empty - log and fallback
+      // Python extraction failed or returned empty - log and return clean warning (no Node.js PDF fallback - pdf-parse can use browser APIs)
       const reason = pythonResult.error || "empty/invalid response";
       console.log(`[extractDocumentFromBlob] Python extraction failed for ${displayName}, reason: ${reason}`);
-      warnings.push(`Python extractor failed for ${displayName}; fallback attempted`);
+      warnings.push(isPdf ? "PDF text extraction could not be completed. Ensure the Python extractor (pdfplumber) is running and accessible." : `Extraction failed for ${displayName}.`);
     }
   } else {
     console.log(
@@ -200,19 +201,17 @@ export async function extractDocumentFromBlob(
     );
   }
 
-  // Fallback: Download blob and use Node.js extraction (DOCX only; PDF fallback disabled - uses browser APIs)
-  const isPdf = fileType === "application/pdf" || extension === ".pdf";
+  // Fallback: Download blob and use Node.js extraction (DOCX only; PDF uses Python only)
   const isDocx =
     fileType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
     extension === ".docx";
 
-  // PDF: No server-safe fallback (pdf-parse can use DOMMatrix in some contexts). Return clean warning.
+  // PDF: Python extractor is the only supported path. Return clean warning (no pdf-parse - can trigger browser APIs).
   if (isPdf) {
-    console.log(`[extractDocumentFromBlob] Fallback attempted for PDF ${displayName} - no server-safe PDF fallback available`);
-    console.log(`[extractDocumentFromBlob] Fallback failed for ${displayName}: PDF extraction requires Python extractor`);
+    console.log(`[extractDocumentFromBlob] PDF ${displayName}: extraction requires Python extractor (pdfplumber)`);
     return {
       text: "",
-      warnings: ["PDF text extraction could not be completed for this file."],
+      warnings: ["PDF text extraction could not be completed. Use the Python extractor service (pdfplumber) for PDF extraction."],
       charactersProcessed: 0,
     };
   }

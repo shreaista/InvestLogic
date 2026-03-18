@@ -135,8 +135,12 @@ interface EvaluationReport {
   // Proposal Validation (runs before fund evaluation)
   validationSummary?: {
     validationScore: number;
-    step: string;
-    heuristic: {
+    confidence?: "low" | "medium" | "high";
+    summary?: string;
+    step?: string;
+    checks?: Record<string, { status: "found" | "partial" | "missing"; detail: string }>;
+    findings?: string[];
+    heuristic?: {
       signals: {
         hasRevenue: boolean;
         hasForecast: boolean;
@@ -155,7 +159,7 @@ interface EvaluationReport {
       businessModelClarity: "clear" | "partial" | "unclear" | "unknown";
       competitorPresence: "identified" | "mentioned" | "none" | "unknown";
     };
-    warnings: string[];
+    warnings?: string[];
   };
 }
 
@@ -471,6 +475,10 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
   const [evaluating, setEvaluating] = useState(false);
   const [evaluationMessage, setEvaluationMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
+  // Proposal validation (simple validate endpoint)
+  const [validationResult, setValidationResult] = useState<{ score: number; findings: string[] } | null>(null);
+  const [validating, setValidating] = useState(false);
+
   // Helper to sort evaluations by evaluatedAt DESC (newest first)
   const sortEvaluationsDesc = (evals: EvaluationMetadata[]): EvaluationMetadata[] => {
     return [...evals].sort((a, b) => {
@@ -518,6 +526,30 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
       queueMicrotask(() => { loadEvaluations(id); });
     }
   }, [proposal?.id, loadEvaluations]);
+
+  // Run proposal validation (simple keyword check)
+  const handleValidateProposal = async () => {
+    if (!proposal) return;
+    setValidating(true);
+    setValidationResult(null);
+    try {
+      const res = await fetch(`/api/proposals/${proposal.id}/validate`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setValidationResult({
+          score: data.data.score,
+          findings: data.data.findings || [],
+        });
+      } else {
+        setEvaluationMessage({ text: data.error || "Validation failed", type: "error" });
+      }
+    } catch {
+      setEvaluationMessage({ text: "Network error during validation", type: "error" });
+    }
+    setValidating(false);
+  };
 
   // NEW: Run evaluation
   const handleRunEvaluation = async () => {
@@ -905,6 +937,7 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
           <li>Select Fund</li>
           <li>Review Mandate Files</li>
           <li>Upload Proposal Documents</li>
+          <li>Validate Proposal</li>
           <li>Evaluate Proposal</li>
           <li>Generate Evaluation Report</li>
         </ol>
@@ -1486,6 +1519,20 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
             </Button>
             <Button
               size="sm"
+              variant="outline"
+              onClick={handleValidateProposal}
+              disabled={validating}
+              className="border-slate-300"
+            >
+              {validating ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <ShieldCheck className="h-4 w-4 mr-1" />
+              )}
+              Validate Proposal
+            </Button>
+            <Button
+              size="sm"
               onClick={handleRunEvaluation}
               disabled={evaluating}
               className="bg-indigo-600 hover:bg-indigo-700"
@@ -1563,6 +1610,43 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
               : "bg-red-50 text-red-700 border-red-100"
           }`}>
             {evaluationMessage.text}
+          </div>
+        )}
+
+        {/* Proposal Validation Summary (standalone - when no evaluation yet) */}
+        {!displayedEvaluation && validationResult && (
+          <div className="p-5 border-b bg-slate-50/50">
+            <div className="flex items-center gap-2 mb-4">
+              <ShieldCheck className="h-4 w-4 text-slate-600" />
+              <p className="text-sm font-medium">Proposal Validation Summary</p>
+            </div>
+            <div className="flex items-center gap-4">
+              <div
+                className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full ${
+                  validationResult.score >= 70 ? "bg-emerald-100" : validationResult.score >= 50 ? "bg-amber-100" : "bg-red-100"
+                }`}
+              >
+                <span className={`text-lg font-bold ${
+                  validationResult.score >= 70 ? "text-emerald-700" : validationResult.score >= 50 ? "text-amber-700" : "text-red-700"
+                }`}>
+                  {validationResult.score}
+                </span>
+              </div>
+              <div>
+                <p className="text-sm font-medium">Validation Score</p>
+                <p className="text-xs text-muted-foreground">Based on revenue, forecast, and competitor presence</p>
+              </div>
+            </div>
+            {validationResult.findings.length > 0 && (
+              <div className="mt-3 pt-3 border-t">
+                <p className="text-xs font-medium text-amber-700 mb-1">Findings</p>
+                <ul className="text-sm text-muted-foreground space-y-0.5">
+                  {validationResult.findings.map((f, i) => (
+                    <li key={i}>• {f}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         )}
 
@@ -1724,83 +1808,79 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
               </div>
             )}
 
-            {/* Proposal Validation Summary */}
+            {/* Proposal Validation Summary - above Fund Evaluation */}
             {displayedEvaluation.validationSummary && (
               <div className="p-5 border-b bg-slate-50/50">
                 <div className="flex items-center gap-2 mb-4">
                   <ShieldCheck className="h-4 w-4 text-slate-600" />
                   <p className="text-sm font-medium">Proposal Validation Summary</p>
-                  <span className="text-xs text-muted-foreground">
-                    ({displayedEvaluation.validationSummary.step})
-                  </span>
+                  {displayedEvaluation.validationSummary.confidence && (
+                    <span className={`inline-flex items-center px-2 py-0.5 text-xs rounded-full ${
+                      displayedEvaluation.validationSummary.confidence === "high" ? "bg-emerald-100 text-emerald-700" :
+                      displayedEvaluation.validationSummary.confidence === "medium" ? "bg-amber-100 text-amber-700" :
+                      "bg-slate-200 text-slate-700"
+                    }`}>
+                      {displayedEvaluation.validationSummary.confidence} confidence
+                    </span>
+                  )}
                 </div>
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 md:grid-cols-2 mb-4">
                   <div className="flex items-center gap-4">
                     <div
                       className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full ${
-                        displayedEvaluation.validationSummary.validationScore >= 70
-                          ? "bg-emerald-100"
-                          : displayedEvaluation.validationSummary.validationScore >= 50
-                            ? "bg-amber-100"
-                            : "bg-red-100"
+                        displayedEvaluation.validationSummary.validationScore >= 70 ? "bg-emerald-100" :
+                        displayedEvaluation.validationSummary.validationScore >= 50 ? "bg-amber-100" : "bg-red-100"
                       }`}
                     >
-                      <span
-                        className={`text-lg font-bold ${
-                          displayedEvaluation.validationSummary.validationScore >= 70
-                            ? "text-emerald-700"
-                            : displayedEvaluation.validationSummary.validationScore >= 50
-                              ? "text-amber-700"
-                              : "text-red-700"
-                        }`}
-                      >
+                      <span className={`text-lg font-bold ${
+                        displayedEvaluation.validationSummary.validationScore >= 70 ? "text-emerald-700" :
+                        displayedEvaluation.validationSummary.validationScore >= 50 ? "text-amber-700" : "text-red-700"
+                      }`}>
                         {displayedEvaluation.validationSummary.validationScore}
                       </span>
                     </div>
                     <div>
                       <p className="text-sm font-medium">Validation Score</p>
-                      <p className="text-xs text-muted-foreground">
-                        Heuristic + LLM signals (0–100)
-                      </p>
+                      <p className="text-xs text-muted-foreground">Heuristic + LLM signals (0–100)</p>
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground">
-                      Detected signals
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {displayedEvaluation.validationSummary.heuristic.signals.hasRevenue && (
-                        <span className="inline-flex items-center rounded-md bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">
-                          Revenue
-                        </span>
-                      )}
-                      {displayedEvaluation.validationSummary.heuristic.signals.hasForecast && (
-                        <span className="inline-flex items-center rounded-md bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">
-                          Forecast
-                        </span>
-                      )}
-                      {displayedEvaluation.validationSummary.heuristic.signals.hasIP && (
-                        <span className="inline-flex items-center rounded-md bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">
-                          IP
-                        </span>
-                      )}
-                      {displayedEvaluation.validationSummary.heuristic.signals.hasCompetitors && (
-                        <span className="inline-flex items-center rounded-md bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">
-                          Competitors
-                        </span>
-                      )}
-                      <span className="inline-flex items-center rounded-md bg-slate-200 px-2 py-0.5 text-xs text-slate-700">
-                        Stage: {displayedEvaluation.validationSummary.heuristic.signals.stage.replace("-", " ")}
-                      </span>
-                      {displayedEvaluation.validationSummary.llm && (
-                        <span className="inline-flex items-center rounded-md bg-indigo-100 px-2 py-0.5 text-xs text-indigo-700">
-                          BM: {displayedEvaluation.validationSummary.llm.businessModelClarity}
-                        </span>
-                      )}
+                  {displayedEvaluation.validationSummary.summary && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-1">Summary</p>
+                      <p className="text-sm text-muted-foreground">{displayedEvaluation.validationSummary.summary}</p>
                     </div>
-                  </div>
+                  )}
                 </div>
-                {displayedEvaluation.validationSummary.heuristic.penalties.length > 0 && (
+                {displayedEvaluation.validationSummary.checks && Object.keys(displayedEvaluation.validationSummary.checks).length > 0 && (
+                  <div className="mt-3 pt-3 border-t">
+                    <p className="text-xs font-medium text-muted-foreground mb-2">Checks</p>
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                      {Object.entries(displayedEvaluation.validationSummary.checks).map(([key, check]) => (
+                        <div key={key} className="flex items-start gap-2 text-sm">
+                          <span className={`shrink-0 w-2 h-2 mt-1.5 rounded-full ${
+                            check.status === "found" ? "bg-emerald-500" :
+                            check.status === "partial" ? "bg-amber-500" : "bg-red-500"
+                          }`} />
+                          <div>
+                            <p className="font-medium capitalize">{key}</p>
+                            <p className="text-xs text-muted-foreground">{check.detail}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {displayedEvaluation.validationSummary.findings && displayedEvaluation.validationSummary.findings.length > 0 && (
+                  <div className="mt-3 pt-3 border-t">
+                    <p className="text-xs font-medium text-amber-700 mb-1">Key findings</p>
+                    <ul className="text-sm text-muted-foreground space-y-0.5">
+                      {displayedEvaluation.validationSummary.findings.map((f, i) => (
+                        <li key={i}>• {f}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {displayedEvaluation.validationSummary.heuristic?.penalties && displayedEvaluation.validationSummary.heuristic.penalties.length > 0 && !displayedEvaluation.validationSummary.findings?.length && (
                   <div className="mt-3 pt-3 border-t">
                     <p className="text-xs font-medium text-amber-700 mb-1">Penalties applied</p>
                     <ul className="text-xs text-muted-foreground space-y-0.5">
@@ -1810,19 +1890,17 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
                     </ul>
                   </div>
                 )}
-                {displayedEvaluation.validationSummary.warnings.length > 0 && (
+                {displayedEvaluation.validationSummary.warnings && displayedEvaluation.validationSummary.warnings.length > 0 && (
                   <div className="mt-2">
                     {displayedEvaluation.validationSummary.warnings.map((w, i) => (
-                      <p key={i} className="text-xs text-amber-600">
-                        {w}
-                      </p>
+                      <p key={i} className="text-xs text-amber-600">{w}</p>
                     ))}
                   </div>
                 )}
               </div>
             )}
 
-            {/* Fit Score Header */}
+            {/* Fit Score Header (Fund Evaluation) */}
             <div className="flex items-center justify-between p-5 border-b">
               <div className="flex items-center gap-4">
                 {/* Show "—" when no docs/templates, otherwise show score */}
