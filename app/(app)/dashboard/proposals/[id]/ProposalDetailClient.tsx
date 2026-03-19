@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { PageHeader, StatusBadge, DataCard, EmptyState } from "@/components/app";
+import { StatusBadge, DataCard, EmptyState } from "@/components/app";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -16,6 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  Activity,
   ArrowLeft,
   AlertCircle,
   FileText,
@@ -302,7 +303,7 @@ function MemoSection({
           <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10">
             <Icon className="h-4 w-4 text-primary" />
           </div>
-          <h3 className="text-base font-semibold">{title}</h3>
+          <h3 className="text-lg font-semibold">{title}</h3>
         </div>
         <Button
           variant="ghost"
@@ -857,11 +858,11 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
     return "bg-red-100";
   };
 
-  // NEW: Get confidence color
+  // Confidence badge: Green for high, Yellow for medium
   const getConfidenceColor = (confidence: "low" | "medium" | "high"): string => {
-    if (confidence === "high") return "text-emerald-600 bg-emerald-100";
-    if (confidence === "medium") return "text-amber-600 bg-amber-100";
-    return "text-red-600 bg-red-100";
+    if (confidence === "high") return "text-emerald-700 bg-emerald-100 border-emerald-200";
+    if (confidence === "medium") return "text-amber-700 bg-amber-100 border-amber-200";
+    return "text-red-700 bg-red-100 border-red-200";
   };
 
   // NEW: Load documents
@@ -965,7 +966,7 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
 
   if (error) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-8">
         <div className="flex items-center gap-4">
           <Link href="/dashboard/proposals">
             <Button variant="ghost" size="sm">
@@ -984,7 +985,7 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
 
   if (!proposal) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-8">
         <div className="flex items-center gap-4">
           <Link href="/dashboard/proposals">
             <Button variant="ghost" size="sm">
@@ -1004,7 +1005,7 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
   const StatusIcon = statusIcons[proposal.status];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex items-center gap-4">
         <Link href="/dashboard/proposals">
           <Button variant="ghost" size="sm">
@@ -1014,37 +1015,85 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
         </Link>
       </div>
 
-      <PageHeader
-        title={proposal.name}
-        subtitle={`Analyst Workspace · ${proposal.id}`}
-        actions={
-          <div className="flex items-center gap-2">
-            {proposal.status === "New" && (
-              <Button>
-                <UserPlus className="h-4 w-4 mr-2" />
-                Assign Assessor
-              </Button>
-            )}
-            {proposal.status === "In Review" && (
-              <>
-                <Button variant="outline" className="text-red-600 border-red-200 hover:bg-red-50">
-                  <XCircle className="h-4 w-4 mr-2" />
-                  Decline
-                </Button>
-                <Button className="bg-emerald-600 hover:bg-emerald-700">
-                  <CheckCircle className="h-4 w-4 mr-2" />
-                  Approve
-                </Button>
-              </>
-            )}
+      {/* Premium header: proposal name + metadata + actions */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between border-b border-gray-200 pb-6">
+        <div className="space-y-2">
+          <h1 className="text-2xl font-bold tracking-tight">{proposal.name}</h1>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500">
+            <span className="flex items-center gap-1.5">
+              <Building className="h-4 w-4" />
+              {proposal.fund || "—"}
+            </span>
+            <span className="flex items-center gap-1.5">
+              <DollarSign className="h-4 w-4" />
+              {formatAmount(proposal.amount)}
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Target className="h-4 w-4" />
+              {proposal.stage || "—"}
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Calendar className="h-4 w-4" />
+              {proposal.submittedAt}
+            </span>
           </div>
-        }
-      />
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleValidateProposal}
+            disabled={validating || documents.length === 0}
+          >
+            {validating ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <ShieldCheck className="h-4 w-4 mr-1.5" />}
+            Validate
+          </Button>
+          <Button
+            size="sm"
+            onClick={handleRunEvaluation}
+            disabled={evaluating || isReadOnly}
+          >
+            {evaluating ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Play className="h-4 w-4 mr-1.5" />}
+            Evaluate
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleGenerateMemo}
+            disabled={generatingMemo || isReadOnly}
+          >
+            {generatingMemo ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <FileOutput className="h-4 w-4 mr-1.5" />}
+            Generate Report
+          </Button>
+          {proposal.status === "New" && (
+            <Button variant="secondary" size="sm">
+              <UserPlus className="h-4 w-4 mr-1.5" />
+              Assign Assessor
+            </Button>
+          )}
+          {proposal.status === "In Review" && (
+            <>
+              <Button variant="outline" size="sm" className="text-red-600 border-red-200 hover:bg-red-50">
+                <XCircle className="h-4 w-4 mr-1.5" />
+                Decline
+              </Button>
+              <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700">
+                <CheckCircle className="h-4 w-4 mr-1.5" />
+                Approve
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-8 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Proposal Details</CardTitle>
+            <div className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-primary" />
+              <CardTitle className="text-lg font-semibold">Proposal Details</CardTitle>
+            </div>
+            <p className="text-sm text-gray-500 mt-1">Core proposal metadata and identifiers</p>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-start gap-3">
@@ -1080,7 +1129,11 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
 
         <Card className="overflow-visible">
           <CardHeader>
-            <CardTitle className="text-base">Status & Assignment</CardTitle>
+            <div className="flex items-center gap-2">
+              <Activity className="h-5 w-5 text-primary" />
+              <CardTitle className="text-lg font-semibold">Status & Assignment</CardTitle>
+            </div>
+            <p className="text-sm text-gray-500 mt-1">Workflow status, fund selection, and reviewer assignment</p>
           </CardHeader>
           <CardContent className="space-y-4 overflow-visible">
             <div>
@@ -1443,8 +1496,8 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
       </DataCard>
 
       {/* Analyst Workspace Tabs */}
-      <Tabs defaultValue="documents" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid">
+      <Tabs defaultValue="documents" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid rounded-xl border border-gray-200 bg-gray-50/80 p-1 shadow-sm">
           <TabsTrigger value="documents" className="gap-2">
             <FileText className="h-4 w-4" />
             Documents
@@ -1464,7 +1517,7 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
         </TabsList>
 
         {/* Documents Tab: Upload Panel + Extracted Data Preview */}
-        <TabsContent value="documents" className="space-y-6 mt-4">
+        <TabsContent value="documents" className="space-y-8 mt-6">
       {/* NEW: Proposal Documents Card */}
       <DataCard
         title="Proposal Documents"
@@ -1659,11 +1712,24 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
       </DataCard>
         </TabsContent>
 
-        {/* Validation Tab */}
-        <TabsContent value="validation" className="space-y-6 mt-4">
+        {/* Validation Tab - AI gradient highlight */}
+        <TabsContent value="validation" className="space-y-8 mt-6">
           <DataCard
             title="Proposal Validation Summary"
             description="Run validation to check proposal completeness"
+            className="bg-gradient-to-r from-indigo-50/80 to-blue-50/80 border-indigo-200 shadow-[0_0_0_1px_rgba(99,102,241,0.1)]"
+            titleClassName="bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent"
+            titleBadges={
+              <>
+                <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium bg-indigo-100 text-indigo-700 border border-indigo-200">
+                  AI Insight
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium bg-indigo-50 text-indigo-600 border border-indigo-200">
+                  <Sparkles className="h-3 w-3" />
+                  Powered by AI
+                </span>
+              </>
+            }
             actions={
               <Button
                 size="sm"
@@ -1681,26 +1747,26 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
             }
           >
             {validationResult?.ok && validationResult?.data ? (
-              <div className="space-y-4">
-                <div className="flex items-center gap-4">
-                  <div className={`flex h-14 w-14 items-center justify-center rounded-full ${
-                    validationResult.data.score >= 70 ? "bg-emerald-100" :
-                    validationResult.data.score >= 50 ? "bg-amber-100" : "bg-red-100"
+              <div className="space-y-6 animate-in fade-in duration-300">
+                <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
+                  <div className={`flex h-24 w-24 shrink-0 items-center justify-center rounded-full ring-4 ${
+                    validationResult.data.score >= 70 ? "bg-emerald-100 ring-emerald-200" :
+                    validationResult.data.score >= 50 ? "bg-amber-100 ring-amber-200" : "bg-red-100 ring-red-200"
                   }`}>
-                    <span className={`text-lg font-bold ${
+                    <span className={`text-3xl font-bold tabular-nums ${
                       validationResult.data.score >= 70 ? "text-emerald-700" :
                       validationResult.data.score >= 50 ? "text-amber-700" : "text-red-700"
                     }`}>
                       {validationResult.data.score}
                     </span>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium">Validation Score</p>
-                    <p className="text-xs text-muted-foreground">Based on revenue, forecast, and competitor presence</p>
+                  <div className="flex-1 text-center sm:text-left">
+                    <p className="text-sm font-medium text-muted-foreground">Validation Score</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Based on revenue, forecast, and competitor presence</p>
                   </div>
                 </div>
                 {(validationResult.data.findings || []).length > 0 && (
-                  <div>
+                  <div className="border-t border-gray-200 pt-4">
                     <p className="text-sm font-medium mb-2">Findings</p>
                     <ul className="list-disc pl-5 space-y-1 text-sm text-muted-foreground">
                       {(validationResult.data.findings || []).map((f: string, i: number) => (
@@ -1740,30 +1806,40 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
         </TabsContent>
 
         {/* Evaluation Tab */}
-        <TabsContent value="evaluation" className="mt-4 space-y-6">
-      {/* Proposal Validation Summary - above Proposal Evaluation */}
+        <TabsContent value="evaluation" className="mt-6 space-y-8">
+      {/* Proposal Validation Summary - AI gradient highlight */}
       {(displayedEvaluation?.validationSummary || (validationResult?.ok && validationResult?.data)) && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <ShieldCheck className="h-5 w-5" />
-              Proposal Validation Summary
-            </CardTitle>
+        <Card className="bg-gradient-to-r from-indigo-50/80 to-blue-50/80 border-indigo-200 overflow-hidden transition-all duration-300 hover:shadow-md shadow-[0_0_0_1px_rgba(99,102,241,0.1)]">
+          <CardHeader className="border-b border-gray-200">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <CardTitle className="text-lg bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent font-semibold">
+                  Proposal Validation Summary
+                </CardTitle>
+                <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium bg-indigo-100 text-indigo-700 border border-indigo-200">
+                  AI Insight
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium bg-indigo-50 text-indigo-600 border border-indigo-200">
+                  <Sparkles className="h-3 w-3" />
+                  Powered by AI
+                </span>
+              </div>
+            </div>
           </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Score + Confidence */}
-            <div className="flex items-center gap-6">
+          <CardContent className="space-y-6 pt-6">
+            {/* Big circular score - centered */}
+            <div className="flex flex-col items-center gap-3">
               <div
-                className={`flex h-20 w-20 shrink-0 items-center justify-center rounded-full ${
+                className={`flex h-28 w-28 shrink-0 items-center justify-center rounded-full ring-4 ${
                   (displayedEvaluation?.validationSummary?.validationScore ?? validationResult?.data?.score ?? 0) >= 70
-                    ? "bg-emerald-100"
+                    ? "bg-emerald-100 ring-emerald-200"
                     : (displayedEvaluation?.validationSummary?.validationScore ?? validationResult?.data?.score ?? 0) >= 50
-                    ? "bg-amber-100"
-                    : "bg-red-100"
+                    ? "bg-amber-100 ring-amber-200"
+                    : "bg-red-100 ring-red-200"
                 }`}
               >
                 <span
-                  className={`text-2xl font-bold ${
+                  className={`text-4xl font-bold tabular-nums ${
                     (displayedEvaluation?.validationSummary?.validationScore ?? validationResult?.data?.score ?? 0) >= 70
                       ? "text-emerald-700"
                       : (displayedEvaluation?.validationSummary?.validationScore ?? validationResult?.data?.score ?? 0) >= 50
@@ -1774,24 +1850,18 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
                   {displayedEvaluation?.validationSummary?.validationScore ?? validationResult?.data?.score ?? 0}
                 </span>
               </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Score</p>
-                <p className="text-xl font-bold tabular-nums">
-                  {displayedEvaluation?.validationSummary?.validationScore ?? validationResult?.data?.score ?? 0}
-                </p>
-                {displayedEvaluation?.validationSummary?.confidence && (
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Confidence: <span className="capitalize font-medium">{displayedEvaluation.validationSummary.confidence}</span>
-                  </p>
-                )}
-              </div>
+              {displayedEvaluation?.validationSummary?.confidence && (
+                <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium border ${getConfidenceColor(displayedEvaluation.validationSummary.confidence)}`}>
+                  {displayedEvaluation.validationSummary.confidence.charAt(0).toUpperCase() + displayedEvaluation.validationSummary.confidence.slice(1)} Confidence
+                </span>
+              )}
             </div>
 
-            {/* Grid of checks - only when we have full validation from evaluation */}
+            {/* Grid of checks - 2 columns: Revenue, Forecast, Stage, IP, Competitors */}
             {displayedEvaluation?.validationSummary?.checks && Object.keys(displayedEvaluation.validationSummary.checks).length > 0 && (
-              <div>
+              <div className="border-t border-gray-200 pt-6">
                 <p className="text-sm font-medium mb-3">Validation Checks</p>
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="grid grid-cols-2 gap-3">
                   {(["revenue", "forecast", "stage", "ip", "competitors", "businessModel"] as const).map((key) => {
                     const check = displayedEvaluation!.validationSummary!.checks![key];
                     if (!check) return null;
@@ -1810,11 +1880,11 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
                       businessModel: "Business Model",
                     };
                     return (
-                      <div key={key} className={`flex items-start gap-3 rounded-lg border p-3 ${borderColor}`}>
+                      <div key={key} className={`flex items-start gap-3 rounded-lg border p-3 ${borderColor} transition-colors duration-200`}>
                         <StatusIcon className={`h-5 w-5 shrink-0 mt-0.5 ${statusColor}`} />
                         <div className="min-w-0">
                           <p className="text-sm font-medium">{labels[key] || key}</p>
-                          <p className="text-xs text-muted-foreground mt-0.5">{check.detail}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{check.detail}</p>
                         </div>
                       </div>
                     );
@@ -1825,7 +1895,7 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
 
             {/* Key Findings */}
             {((displayedEvaluation?.validationSummary?.findings?.length ?? 0) > 0 || (validationResult?.data?.findings?.length ?? 0) > 0) && (
-              <div>
+              <div className="border-t border-gray-200 pt-6">
                 <p className="text-sm font-medium mb-2">Key Findings</p>
                 <ul className="list-disc pl-5 space-y-1 text-sm text-muted-foreground">
                   {(displayedEvaluation?.validationSummary?.findings ?? validationResult?.data?.findings ?? []).map((f: string, i: number) => (
@@ -1837,8 +1907,17 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
 
             {/* AI Summary paragraph */}
             {displayedEvaluation?.validationSummary?.summary && (
-              <div>
-                <p className="text-sm font-medium mb-2">AI Summary</p>
+              <div className="border-t border-gray-200 pt-6">
+                <div className="flex items-center gap-2 mb-2">
+                  <p className="text-sm font-medium bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">AI Summary</p>
+                  <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium bg-indigo-100 text-indigo-700 border border-indigo-200">
+                    AI Insight
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium bg-indigo-50 text-indigo-600 border border-indigo-200">
+                    <Sparkles className="h-3 w-3" />
+                    Powered by AI
+                  </span>
+                </div>
                 <p className="text-sm text-muted-foreground leading-relaxed">
                   {displayedEvaluation.validationSummary.summary}
                 </p>
@@ -1848,10 +1927,23 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
         </Card>
       )}
 
-      {/* NEW: Proposal Evaluation Card */}
+      {/* Proposal Evaluation Card - AI gradient highlight */}
       <DataCard
         title="Proposal Evaluation"
         description="AI-powered analysis of proposal against fund mandate"
+        className="bg-gradient-to-r from-indigo-50/80 to-blue-50/80 border-indigo-200 shadow-[0_0_0_1px_rgba(99,102,241,0.1)]"
+        titleClassName="bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent"
+        titleBadges={
+          <>
+            <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium bg-indigo-100 text-indigo-700 border border-indigo-200">
+              AI Scored
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium bg-indigo-50 text-indigo-600 border border-indigo-200">
+              <Sparkles className="h-3 w-3" />
+              Powered by AI
+            </span>
+          </>
+        }
         actions={
           <div className="flex items-center gap-2">
             <Button
@@ -1976,7 +2068,7 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
             <p className="text-sm">Loading evaluations...</p>
           </div>
         ) : displayedEvaluation ? (
-          <div>
+          <div className="animate-in fade-in duration-300">
             {/* Historical evaluation warning banner */}
             {viewingHistorical && (
               <div className="px-5 py-3 bg-blue-50 border-b border-blue-200">
@@ -2037,19 +2129,19 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
                       <div className="mt-2 flex flex-wrap gap-3 text-xs">
                         {displayedEvaluation.inputs.processedDocumentsCount !== undefined &&
                           displayedEvaluation.inputs.processedDocumentsCount > 0 && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded bg-emerald-100 text-emerald-700">
+                            <span className="inline-flex items-center rounded-full px-3 py-1 text-xs bg-emerald-100 text-emerald-700">
                               {displayedEvaluation.inputs.processedDocumentsCount} processed
                             </span>
                           )}
                         {displayedEvaluation.inputs.truncatedDocumentsCount !== undefined &&
                           displayedEvaluation.inputs.truncatedDocumentsCount > 0 && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded bg-amber-100 text-amber-700">
+                            <span className="inline-flex items-center rounded-full px-3 py-1 text-xs bg-amber-100 text-amber-700">
                               {displayedEvaluation.inputs.truncatedDocumentsCount} truncated
                             </span>
                           )}
                         {displayedEvaluation.inputs.skippedDocumentsCount !== undefined &&
                           displayedEvaluation.inputs.skippedDocumentsCount > 0 && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded bg-red-100 text-red-700">
+                            <span className="inline-flex items-center rounded-full px-3 py-1 text-xs bg-red-100 text-red-700">
                               {displayedEvaluation.inputs.skippedDocumentsCount} skipped
                             </span>
                           )}
@@ -2062,7 +2154,7 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
 
             {/* Showing latest evaluation indicator */}
             {!viewingHistorical && (
-              <div className="px-5 py-2 bg-emerald-50 border-b border-emerald-100 flex items-center gap-2">
+              <div className="px-5 py-2 bg-emerald-50 border-t border-gray-200 border-b border-emerald-100 flex items-center gap-2">
                 <CheckCircle className="h-4 w-4 text-emerald-600" />
                 <span className="text-sm text-emerald-700">Showing latest evaluation</span>
               </div>
@@ -2070,7 +2162,7 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
 
             {/* Memo Status section */}
             {(latestMemoBlobPath || memoCount > 0) && (
-              <div className="px-5 py-3 border-b bg-muted/5">
+              <div className="px-5 py-3 border-t border-gray-200 border-b bg-muted/5">
                 <p className="text-xs font-medium text-muted-foreground mb-2">Report Status</p>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
                   {latestMemoFileName && (
@@ -2106,7 +2198,7 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
                               {m.fileName}
                             </span>
                             {m.isLatest && (
-                              <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded shrink-0">
+                              <span className="text-xs rounded-full px-3 py-1 bg-primary/10 text-primary shrink-0">
                                 Latest
                               </span>
                             )}
@@ -2128,55 +2220,69 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
               </div>
             )}
 
-            {/* Fit Score Header (Fund Evaluation) */}
-            <div className="flex items-center justify-between p-5 border-b">
-              <div className="flex items-center gap-4">
-                {/* Show "—" when no docs/templates, otherwise show score */}
+            {/* Fit Score - BIG centered with colored ring */}
+            <div className="flex flex-col items-center gap-4 p-8 border-t border-gray-200">
+              <div className="flex flex-col items-center gap-2">
                 {displayedEvaluation.inputs.proposalDocuments === 0 && displayedEvaluation.inputs.mandateTemplates === 0 ? (
-                  <div className="flex items-center justify-center w-16 h-16 rounded-full bg-gray-100">
-                    <span className="text-2xl font-bold text-gray-400">—</span>
+                  <div className="flex items-center justify-center w-32 h-32 rounded-full bg-gray-100 ring-4 ring-gray-200">
+                    <span className="text-4xl font-bold text-gray-400">—</span>
                   </div>
                 ) : (
-                  <div className={`flex items-center justify-center w-16 h-16 rounded-full ${displayedEvaluation.fitScore !== null ? getScoreBg(displayedEvaluation.fitScore) : 'bg-gray-100'}`}>
-                    <span className={`text-2xl font-bold ${displayedEvaluation.fitScore !== null ? getScoreColor(displayedEvaluation.fitScore) : 'text-gray-400'}`}>
+                  <div className={`flex items-center justify-center w-32 h-32 rounded-full ring-4 ${
+                    displayedEvaluation.fitScore !== null ? getScoreBg(displayedEvaluation.fitScore) : "bg-gray-100"
+                  } ${
+                    displayedEvaluation.fitScore !== null && displayedEvaluation.fitScore >= 70 ? "ring-emerald-200" :
+                    displayedEvaluation.fitScore !== null && displayedEvaluation.fitScore >= 50 ? "ring-amber-200" :
+                    displayedEvaluation.fitScore !== null ? "ring-red-200" : "ring-gray-200"
+                  }`}>
+                    <span className={`text-5xl font-bold tabular-nums ${
+                      displayedEvaluation.fitScore !== null ? getScoreColor(displayedEvaluation.fitScore) : "text-gray-400"
+                    }`}>
                       {displayedEvaluation.fitScore !== null ? displayedEvaluation.fitScore : "—"}
                     </span>
                   </div>
                 )}
-                <div>
-                  <p className="text-lg font-semibold">
+                <div className="flex items-center gap-2 flex-wrap justify-center">
+                  <p className="text-lg font-semibold bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">
                     {displayedEvaluation.inputs.proposalDocuments === 0 && displayedEvaluation.inputs.mandateTemplates === 0
                       ? "Insufficient Inputs"
                       : "Fit Score"}
                   </p>
-                  <p className="text-sm text-muted-foreground">
-                    Based on {displayedEvaluation.inputs.proposalDocuments} document(s) and {displayedEvaluation.inputs.mandateTemplates} template(s)
-                  </p>
-                  {/* Confidence Badge */}
-                  {displayedEvaluation.confidence && (
-                    <div className="flex items-center gap-2 mt-1">
-                      <ShieldCheck className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span className={`inline-flex items-center px-2 py-0.5 text-xs rounded-full ${getConfidenceColor(displayedEvaluation.confidence)}`}>
-                        {displayedEvaluation.confidence.charAt(0).toUpperCase() + displayedEvaluation.confidence.slice(1)} Confidence
+                  {displayedEvaluation.inputs.proposalDocuments > 0 && displayedEvaluation.inputs.mandateTemplates > 0 && (
+                    <>
+                      <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium bg-indigo-100 text-indigo-700 border border-indigo-200">
+                        AI Scored
                       </span>
-                    </div>
+                      <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium bg-indigo-50 text-indigo-600 border border-indigo-200">
+                        <Sparkles className="h-3 w-3" />
+                        Powered by AI
+                      </span>
+                    </>
                   )}
                 </div>
+                <p className="text-sm text-muted-foreground text-center">
+                  Based on {displayedEvaluation.inputs.proposalDocuments} document(s) and {displayedEvaluation.inputs.mandateTemplates} template(s)
+                </p>
+                {displayedEvaluation.confidence && (
+                  <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium border mt-1 ${getConfidenceColor(displayedEvaluation.confidence)}`}>
+                    {displayedEvaluation.confidence.charAt(0).toUpperCase() + displayedEvaluation.confidence.slice(1)} Confidence
+                  </span>
+                )}
               </div>
-              <div className="text-right text-sm text-muted-foreground">
+              <div className="text-center text-sm text-muted-foreground">
                 <p>Evaluated {formatDate(displayedEvaluation.evaluatedAt)}</p>
                 <p>by {displayedEvaluation.evaluatedByEmail}</p>
-                <div className="flex items-center justify-end gap-2 mt-1">
+                <div className="flex items-center justify-center gap-2 mt-2 flex-wrap">
                   {displayedEvaluation.engineType === "azure-openai" ? (
-                    <span className="inline-block px-2 py-0.5 text-xs bg-blue-100 text-blue-700 rounded">
+                    <span className="inline-flex rounded-full px-3 py-1 text-xs bg-blue-100 text-blue-700">
                       Azure OpenAI: {displayedEvaluation.model}
                     </span>
                   ) : displayedEvaluation.engineType === "llm" ? (
-                    <span className="inline-block px-2 py-0.5 text-xs bg-primary/10 text-primary rounded">
+                    <span className="inline-flex rounded-full px-3 py-1 text-xs bg-primary/10 text-primary">
                       LLM: {displayedEvaluation.model}
                     </span>
                   ) : (
-                    <span className="inline-block px-2 py-0.5 text-xs bg-amber-100 text-amber-700 rounded">
+                    <span className="inline-flex rounded-full px-3 py-1 text-xs bg-amber-100 text-amber-700">
                       Stub Engine
                     </span>
                   )}
@@ -2186,19 +2292,23 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
 
             {/* Structured Scores Section */}
             {displayedEvaluation.structuredScores && (
-              <div className="p-5 border-b bg-muted/10">
-                <div className="flex items-center gap-2 mb-4">
+              <div className="p-6 border-t border-gray-200 bg-muted/10">
+                <div className="flex items-center gap-2 mb-4 flex-wrap">
                   <Target className="h-4 w-4 text-primary" />
-                  <p className="text-sm font-medium">Score Breakdown</p>
+                  <p className="text-sm font-medium bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">Score Breakdown</p>
                   {displayedEvaluation.scoringMethod && (
-                    <span className={`text-xs px-2 py-0.5 rounded ${
+                    <span className={`text-xs rounded-full px-3 py-1 font-medium border ${
                       displayedEvaluation.scoringMethod === "structured" 
-                        ? "bg-emerald-100 text-emerald-700" 
-                        : "bg-amber-100 text-amber-700"
+                        ? "bg-emerald-100 text-emerald-700 border-emerald-200" 
+                        : "bg-amber-100 text-amber-700 border-amber-200"
                     }`}>
-                      {displayedEvaluation.scoringMethod === "structured" ? "AI-Scored" : "Estimated"}
+                      {displayedEvaluation.scoringMethod === "structured" ? "AI Scored" : "Estimated"}
                     </span>
                   )}
+                  <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium bg-indigo-50 text-indigo-600 border border-indigo-200">
+                    <Sparkles className="h-3 w-3" />
+                    Powered by AI
+                  </span>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                   {/* Sector Fit */}
@@ -2293,14 +2403,20 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
             )}
 
             {/* Summaries - inline editable */}
-            <div className="grid md:grid-cols-2 gap-4 p-5 border-b">
+            <div className="grid md:grid-cols-2 gap-6 p-6 border-t border-gray-200">
               <div>
-                <p className="text-sm font-medium mb-2">Mandate Summary</p>
+                <div className="flex items-center gap-2 mb-2">
+                  <FileText className="h-4 w-4 text-primary" />
+                  <p className="text-sm font-semibold">Mandate Summary</p>
+                </div>
                 <p className="text-sm text-muted-foreground">{displayedEvaluation.mandateSummary}</p>
               </div>
               <div>
                 <div className="flex items-center justify-between gap-2 mb-2">
-                  <p className="text-sm font-medium">Proposal Summary</p>
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    <p className="text-sm font-semibold">Proposal Summary</p>
+                  </div>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -2337,9 +2453,12 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
               </div>
             </div>
             {/* Analyst Notes - inline editable */}
-            <div className="p-5 border-b">
+            <div className="p-6 border-t border-gray-200">
               <div className="flex items-center justify-between gap-2 mb-2">
-                <p className="text-sm font-medium">Analyst Notes</p>
+                <div className="flex items-center gap-2">
+                  <Pencil className="h-4 w-4 text-primary" />
+                  <p className="text-sm font-semibold">Analyst Notes</p>
+                </div>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -2373,66 +2492,96 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
               )}
             </div>
 
-            {/* Strengths, Risks, Recommendations */}
-            <div className="grid md:grid-cols-3 gap-4 p-5 border-b">
-              {/* Strengths */}
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <TrendingUp className="h-4 w-4 text-emerald-600" />
-                  <p className="text-sm font-medium">Strengths</p>
-                </div>
-                <ul className="space-y-2">
-                  {displayedEvaluation.strengths.map((strength, i) => (
-                    <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
-                      <CheckCircle className="h-4 w-4 text-emerald-500 mt-0.5 shrink-0" />
-                      <span>{strength}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              {/* Risks */}
-              <div>
-                <div className="flex items-center justify-between gap-2 mb-3">
-                  <div className="flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4 text-amber-600" />
-                    <p className="text-sm font-medium">Risks</p>
+            {/* Strengths, Risks, Recommendations - 3 cards */}
+            <div className="grid md:grid-cols-3 gap-6 p-6 border-t border-gray-200">
+              {/* Strengths card */}
+              <Card className="border-indigo-200/60 bg-gradient-to-r from-indigo-50/50 to-blue-50/50 border-emerald-200/60 transition-all duration-300 hover:shadow-md shadow-[0_0_0_1px_rgba(99,102,241,0.08)]">
+                <CardHeader className="pb-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100">
+                      <CheckCircle className="h-4 w-4 text-emerald-600" />
+                    </div>
+                    <CardTitle className="text-base bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">Strengths</CardTitle>
+                    <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium bg-indigo-50 text-indigo-600 border border-indigo-200">
+                      <Sparkles className="h-3 w-3" />
+                      Powered by AI
+                    </span>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={() => setExplainAiOpen(true)}
-                  >
-                    <HelpCircle className="h-3.5 w-3.5 mr-1" />
-                    Explain AI
-                  </Button>
-                </div>
-                <ul className="space-y-2">
-                  {displayedEvaluation.risks.map((risk, i) => (
-                    <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
-                      <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
-                      <span>{risk}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <ul className="space-y-2">
+                    {displayedEvaluation.strengths.map((strength, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
+                        <CheckCircle className="h-4 w-4 text-emerald-500 mt-0.5 shrink-0" />
+                        <span>{strength}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
 
-              {/* Recommendations */}
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <Lightbulb className="h-4 w-4 text-blue-600" />
-                  <p className="text-sm font-medium">Recommendations</p>
-                </div>
-                <ul className="space-y-2">
-                  {displayedEvaluation.recommendations.map((rec, i) => (
-                    <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
-                      <Lightbulb className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
-                      <span>{rec}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              {/* Risks card */}
+              <Card className="border-indigo-200/60 bg-gradient-to-r from-indigo-50/50 to-blue-50/50 border-amber-200/60 transition-all duration-300 hover:shadow-md shadow-[0_0_0_1px_rgba(99,102,241,0.08)]">
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100">
+                        <AlertTriangle className="h-4 w-4 text-amber-600" />
+                      </div>
+                      <CardTitle className="text-base bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">Risks</CardTitle>
+                      <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium bg-indigo-50 text-indigo-600 border border-indigo-200">
+                        <Sparkles className="h-3 w-3" />
+                        Powered by AI
+                      </span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => setExplainAiOpen(true)}
+                    >
+                      <HelpCircle className="h-3.5 w-3.5 mr-1" />
+                      Explain AI
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <ul className="space-y-2">
+                    {displayedEvaluation.risks.map((risk, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
+                        <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+                        <span>{risk}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+
+              {/* Recommendations card */}
+              <Card className="border-indigo-200/60 bg-gradient-to-r from-indigo-50/50 to-blue-50/50 border-blue-200/60 transition-all duration-300 hover:shadow-md shadow-[0_0_0_1px_rgba(99,102,241,0.08)]">
+                <CardHeader className="pb-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100">
+                      <Lightbulb className="h-4 w-4 text-blue-600" />
+                    </div>
+                    <CardTitle className="text-base bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">Recommendations</CardTitle>
+                    <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium bg-indigo-50 text-indigo-600 border border-indigo-200">
+                      <Sparkles className="h-3 w-3" />
+                      Powered by AI
+                    </span>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <ul className="space-y-2">
+                    {displayedEvaluation.recommendations.map((rec, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
+                        <Lightbulb className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
+                        <span>{rec}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
             </div>
 
             {/* Previous Evaluations */}
@@ -2472,12 +2621,12 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
                             )}
                             <span className="font-mono text-sm">{eval_.evaluationId}</span>
                             {i === 0 && (
-                              <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded">
+                              <span className="text-xs rounded-full px-3 py-1 bg-primary/10 text-primary">
                                 Latest
                               </span>
                             )}
                             {displayedEvaluation?.evaluationId === eval_.evaluationId && i !== 0 && (
-                              <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
+                              <span className="text-xs rounded-full px-3 py-1 bg-blue-100 text-blue-700">
                                 Viewing
                               </span>
                             )}
@@ -2601,7 +2750,7 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
         </TabsContent>
 
         {/* AI Memo Tab */}
-        <TabsContent value="memo" className="space-y-6 mt-4">
+        <TabsContent value="memo" className="space-y-8 mt-6">
           {memoMessage && (
             <div className={`px-4 py-3 rounded-lg text-sm ${
               memoMessage.type === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-red-50 text-red-700 border border-red-200"
