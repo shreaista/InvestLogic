@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { StatusBadge, DataCard, EmptyState, PageHero } from "@/components/app";
+import { StatusBadge, DataCard, EmptyState } from "@/components/app";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -1005,7 +1005,8 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
   const StatusIcon = statusIcons[proposal.status];
 
   return (
-    <div className="space-y-10 animate-in fade-in duration-500">
+    <div className="min-h-screen bg-gradient-to-b from-indigo-50/40 via-white to-blue-50/30 -m-6 p-6">
+      <div className="rounded-3xl bg-white/90 backdrop-blur-sm border border-slate-200/80 shadow-sm p-6 space-y-6 animate-in fade-in duration-500">
       <div className="flex items-center gap-4">
         <Link href="/dashboard/proposals">
           <Button variant="ghost" size="sm">
@@ -1015,62 +1016,57 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
         </Link>
       </div>
 
-      {/* Blue/indigo hero header */}
-      <PageHero
-        variant="proposals"
-        icon={FileText}
-        title={proposal.name}
-        subtitle={
-          <span className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-600">
-            <span className="flex items-center gap-1.5 font-mono">
-              <Hash className="h-3.5 w-3.5 text-indigo-500" />
-              {proposal.id}
-            </span>
-            <span className="flex items-center gap-1.5">
-              <Building className="h-3.5 w-3.5 text-indigo-500" />
-              {proposal.fund || "—"}
-            </span>
-            <span className="flex items-center gap-1.5">
-              <DollarSign className="h-3.5 w-3.5 text-indigo-500" />
-              {formatAmount(proposal.amount)}
-            </span>
-            <span className="flex items-center gap-1.5">
-              <Target className="h-3.5 w-3.5 text-indigo-500" />
-              {proposal.stage || "—"}
-            </span>
-            <span className="flex items-center gap-1.5">
-              <Calendar className="h-3.5 w-3.5 text-indigo-500" />
-              {proposal.submittedAt}
-            </span>
-          </span>
-        }
-        actions={
-          <div className="flex flex-wrap items-center gap-2">
+      {/* Hero header - premium AI workspace */}
+      <div className="rounded-3xl border border-indigo-100 bg-gradient-to-r from-indigo-50 to-blue-50 p-6 transition-shadow hover:shadow-md">
+        <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-2">
+            <h1 className="text-2xl font-bold text-slate-900">{proposal.name}</h1>
+            <p className="text-sm text-slate-500 font-mono">{proposal.id}</p>
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm text-slate-600">
+              <span className="flex items-center gap-1.5">
+                <Building className="h-4 w-4 text-indigo-500" />
+                {proposal.fund || "—"}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <DollarSign className="h-4 w-4 text-indigo-500" />
+                {formatAmount(proposal.amount)}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Calendar className="h-4 w-4 text-indigo-500" />
+                {proposal.submittedAt}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Target className="h-4 w-4 text-indigo-500" />
+                {proposal.stage || "—"}
+              </span>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
             <Button
               variant="outline"
               size="sm"
               onClick={handleValidateProposal}
               disabled={validating || documents.length === 0}
-              className="border-indigo-200 bg-white/80 hover:bg-indigo-50"
+              className="border-indigo-200 bg-white hover:bg-indigo-50"
             >
               {validating ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <ShieldCheck className="h-4 w-4 mr-1.5" />}
-              Validate
+              Validate Proposal
             </Button>
             <Button
               size="sm"
               onClick={handleRunEvaluation}
               disabled={evaluating || isReadOnly}
-              className="bg-indigo-600 hover:bg-indigo-700"
+              className="bg-gradient-to-r from-indigo-600 to-blue-600 text-white hover:from-indigo-700 hover:to-blue-700"
             >
               {evaluating ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Play className="h-4 w-4 mr-1.5" />}
-              Evaluate
+              Evaluate Proposal
             </Button>
             <Button
               variant="outline"
               size="sm"
               onClick={handleGenerateMemo}
               disabled={generatingMemo || isReadOnly}
-              className="border-indigo-200 bg-white/80 hover:bg-indigo-50"
+              className="border-indigo-200 bg-white hover:bg-indigo-50"
             >
               {generatingMemo ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <FileOutput className="h-4 w-4 mr-1.5" />}
               Generate Report
@@ -1094,11 +1090,11 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
               </>
             )}
           </div>
-        }
-      />
+        </div>
+      </div>
 
-      <div className="grid gap-8 md:grid-cols-2">
-        <Card className="rounded-2xl border-slate-200 shadow-sm overflow-hidden">
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden transition-shadow hover:shadow-md">
           <CardHeader>
             <div className="flex items-center gap-2">
               <FileText className="h-5 w-5 text-primary" />
@@ -1138,7 +1134,7 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl border-slate-200 shadow-sm overflow-visible">
+        <Card className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-visible transition-shadow hover:shadow-md">
           <CardHeader>
             <div className="flex items-center gap-2">
               <Activity className="h-5 w-5 text-primary" />
@@ -1507,7 +1503,7 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
       </DataCard>
 
       {/* Analyst Workspace Tabs */}
-      <div className="rounded-2xl border border-slate-200 bg-gradient-to-b from-slate-50/50 to-white p-6 shadow-sm mt-2">
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
         <Tabs defaultValue="documents" className="space-y-6">
           <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid rounded-xl border border-slate-200 bg-slate-100/80 p-1.5 shadow-sm">
           <TabsTrigger value="documents" className="gap-2">
@@ -1530,10 +1526,11 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
 
         {/* Documents Tab: Upload Panel + Extracted Data Preview */}
         <TabsContent value="documents" className="space-y-8 mt-6">
-      {/* NEW: Proposal Documents Card */}
+      {/* Proposal Documents - premium card */}
       <DataCard
         title="Proposal Documents"
         description="Upload and manage documents for this proposal. Supported: PDF, DOC, DOCX, XLS, XLSX (max 25MB)"
+        className="rounded-2xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md"
         actions={
           <div className="flex items-center gap-2">
             <Button
@@ -1614,17 +1611,17 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
         ) : (
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead>File Name</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead className="text-right">Size</TableHead>
-                <TableHead>Uploaded</TableHead>
+              <TableRow className="bg-indigo-50/50 hover:bg-indigo-50/50">
+                <TableHead className="font-semibold text-slate-700">File Name</TableHead>
+                <TableHead className="font-semibold text-slate-700">Type</TableHead>
+                <TableHead className="text-right font-semibold text-slate-700">Size</TableHead>
+                <TableHead className="font-semibold text-slate-700">Uploaded</TableHead>
                 <TableHead className="w-32"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {documents.map((doc) => (
-                <TableRow key={doc.blobPath} className="group">
+                <TableRow key={doc.blobPath} className="group hover:bg-indigo-50/30 transition-colors">
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <FileText className="h-4 w-4 text-muted-foreground" />
@@ -1724,17 +1721,16 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
       </DataCard>
         </TabsContent>
 
-        {/* Validation Tab - AI gradient highlight */}
-        <TabsContent value="validation" className="space-y-8 mt-6">
+        {/* Validation Tab - AI Validation Summary */}
+        <TabsContent value="validation" className="space-y-6 mt-6">
           <DataCard
-            title="Proposal Validation Summary"
+            title="AI Validation Summary"
             description="Run validation to check proposal completeness"
-            className="bg-gradient-to-br from-violet-50 via-fuchsia-50/80 to-violet-100/60 border-violet-200/80 shadow-lg shadow-violet-100/40"
+            className="rounded-2xl border border-violet-100 bg-gradient-to-r from-violet-50 to-fuchsia-50 shadow-sm transition-shadow hover:shadow-md"
             accent="violet"
-            titleClassName="bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent"
             titleBadges={
               <>
-                <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium bg-indigo-100 text-indigo-700 border border-indigo-200">
+                <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium bg-violet-100 text-violet-700 border border-violet-200">
                   AI Insight
                 </span>
                 <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium bg-indigo-50 text-indigo-600 border border-indigo-200">
@@ -1822,12 +1818,12 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
         <TabsContent value="evaluation" className="mt-8 space-y-10">
       {/* Proposal Validation Summary - AI gradient highlight */}
       {(displayedEvaluation?.validationSummary || (validationResult?.ok && validationResult?.data)) && (
-        <Card className="bg-gradient-to-br from-violet-50 via-fuchsia-50/80 to-violet-100/60 border-violet-200/80 overflow-hidden transition-all duration-300 hover:shadow-lg shadow-lg shadow-violet-100/40">
+        <Card className="rounded-2xl border border-violet-100 bg-gradient-to-r from-violet-50 to-fuchsia-50 overflow-hidden transition-shadow hover:shadow-md">
           <CardHeader className="border-b border-gray-200">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 flex-wrap">
-                <CardTitle className="text-lg bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent font-semibold">
-                  Proposal Validation Summary
+                <CardTitle className="text-lg font-semibold text-slate-900">
+                  AI Validation Summary
                 </CardTitle>
                 <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium bg-indigo-100 text-indigo-700 border border-indigo-200">
                   AI Insight
@@ -2234,22 +2230,22 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
               </div>
             )}
 
-            {/* Fit Score - prominent colored chip + confidence badge */}
-            <div className="flex flex-col items-center gap-6 p-10 border-t border-indigo-100 bg-gradient-to-b from-white to-indigo-50/30">
+            {/* Fit Score - hero centerpiece */}
+            <div className="flex flex-col items-center gap-6 p-6 rounded-2xl border border-indigo-100 bg-gradient-to-r from-indigo-50 to-blue-50 text-center transition-shadow hover:shadow-md">
               <div className="flex flex-col items-center gap-4">
                 {displayedEvaluation.inputs.proposalDocuments === 0 && displayedEvaluation.inputs.mandateTemplates === 0 ? (
-                  <div className="flex items-center justify-center w-36 h-36 rounded-full bg-slate-100 ring-4 ring-slate-200 shadow-inner">
-                    <span className="text-5xl font-bold text-slate-400">—</span>
+                  <div className="flex items-center justify-center w-40 h-40 rounded-full bg-slate-100 ring-4 ring-slate-200">
+                    <span className="text-6xl font-bold text-slate-400">—</span>
                   </div>
                 ) : (
-                  <div className={`flex items-center justify-center w-36 h-36 rounded-full ring-[6px] shadow-xl ${
+                  <div className={`flex items-center justify-center w-40 h-40 rounded-full ring-[6px] ${
                     displayedEvaluation.fitScore !== null ? getScoreBg(displayedEvaluation.fitScore) : "bg-slate-100"
                   } ${
                     displayedEvaluation.fitScore !== null && displayedEvaluation.fitScore >= 70 ? "ring-emerald-300 shadow-lg" :
                     displayedEvaluation.fitScore !== null && displayedEvaluation.fitScore >= 50 ? "ring-amber-300 shadow-lg" :
                     displayedEvaluation.fitScore !== null ? "ring-red-300 shadow-lg" : "ring-slate-200"
                   }`}>
-                    <span className={`text-6xl font-bold tabular-nums ${
+                    <span className={`text-7xl font-bold tabular-nums ${
                       displayedEvaluation.fitScore !== null ? getScoreColor(displayedEvaluation.fitScore) : "text-slate-400"
                     }`}>
                       {displayedEvaluation.fitScore !== null ? displayedEvaluation.fitScore : "—"}
@@ -2264,8 +2260,8 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
                         : "Fit Score"}
                     </p>
                     {displayedEvaluation.confidence && (
-                      <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold border-2 ${getConfidenceColor(displayedEvaluation.confidence)}`}>
-                        {displayedEvaluation.confidence.charAt(0).toUpperCase() + displayedEvaluation.confidence.slice(1)} Confidence
+                      <span className={`inline-flex items-center gap-1 rounded-full px-4 py-2 text-sm font-semibold border-2 ${getConfidenceColor(displayedEvaluation.confidence)}`}>
+                        {displayedEvaluation.confidence === "high" ? "High" : displayedEvaluation.confidence === "medium" ? "Medium" : "Low"} Confidence
                       </span>
                     )}
                   </div>
@@ -2505,24 +2501,27 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
               )}
             </div>
 
-            {/* Strengths, Risks, Recommendations - 3 premium colored cards */}
-            <div className="grid md:grid-cols-3 gap-8 p-8 border-t border-indigo-100 bg-gradient-to-b from-indigo-50/20 to-transparent">
+            {/* Strengths, Risks, Recommendations - 3-column layout */}
+            <div className="grid md:grid-cols-3 gap-6">
               {/* Strengths - green tint */}
-              <Card className="border-emerald-200/80 bg-gradient-to-br from-emerald-50 via-teal-50/60 to-emerald-100/40 shadow-md transition-all duration-300 hover:shadow-lg border-t-4 border-t-emerald-500/70">
-                <CardHeader className="pb-3">
+              <Card className="rounded-2xl border border-emerald-200 bg-gradient-to-b from-emerald-50/80 to-white p-5 shadow-sm transition-shadow hover:shadow-md">
+                <CardHeader className="p-0 pb-4">
                   <div className="flex items-center gap-2 flex-wrap">
                     <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 shadow-sm">
                       <CheckCircle className="h-5 w-5 text-emerald-600" />
                     </div>
-                    <CardTitle className="text-base text-emerald-800 font-bold">Strengths</CardTitle>
-                    <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium bg-emerald-100/80 text-emerald-700 border border-emerald-200">
+                    <CardTitle className="text-base text-emerald-800 font-bold flex items-center gap-2">
+                      <CheckCircle className="h-5 w-5 text-emerald-600" />
+                      Strengths
+                    </CardTitle>
+                    <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium bg-indigo-50 text-indigo-600 border border-indigo-200">
                       <Sparkles className="h-3 w-3" />
-                      AI
+                      Powered by AI
                     </span>
                   </div>
                 </CardHeader>
-                <CardContent className="pt-0">
-                  <ul className="space-y-3">
+                <CardContent className="p-0">
+                  <ul className="space-y-4">
                     {displayedEvaluation.strengths.map((strength, i) => (
                       <li key={i} className="flex items-start gap-2.5 text-sm text-emerald-900/90">
                         <CheckCircle className="h-4 w-4 text-emerald-500 mt-0.5 shrink-0" />
@@ -2534,14 +2533,14 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
               </Card>
 
               {/* Risks - rose/amber tint */}
-              <Card className="border-rose-200/80 bg-gradient-to-br from-rose-50 via-amber-50/60 to-rose-100/40 shadow-md transition-all duration-300 hover:shadow-lg border-t-4 border-t-rose-500/70">
-                <CardHeader className="pb-3">
+              <Card className="rounded-2xl border border-rose-200 bg-gradient-to-b from-rose-50/80 to-amber-50/30 p-5 shadow-sm transition-shadow hover:shadow-md">
+                <CardHeader className="p-0 pb-4">
                   <div className="flex items-center justify-between gap-2 flex-wrap">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 shadow-sm">
+                      <CardTitle className="text-base text-rose-800 font-bold flex items-center gap-2">
                         <AlertTriangle className="h-5 w-5 text-amber-600" />
-                      </div>
-                      <CardTitle className="text-base text-rose-800 font-bold">Risks</CardTitle>
+                        Risks
+                      </CardTitle>
                       <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium bg-rose-100/80 text-rose-700 border border-rose-200">
                         <Sparkles className="h-3 w-3" />
                         AI
@@ -2558,8 +2557,8 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
                     </Button>
                   </div>
                 </CardHeader>
-                <CardContent className="pt-0">
-                  <ul className="space-y-3">
+                <CardContent className="p-0">
+                  <ul className="space-y-4">
                     {displayedEvaluation.risks.map((risk, i) => (
                       <li key={i} className="flex items-start gap-2.5 text-sm text-rose-900/90">
                         <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
@@ -2571,21 +2570,21 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
               </Card>
 
               {/* Recommendations - blue tint */}
-              <Card className="border-blue-200/80 bg-gradient-to-br from-blue-50 via-cyan-50/60 to-blue-100/40 shadow-md transition-all duration-300 hover:shadow-lg border-t-4 border-t-blue-500/70">
-                <CardHeader className="pb-3">
+              <Card className="rounded-2xl border border-blue-200 bg-gradient-to-b from-blue-50/80 to-cyan-50/30 p-5 shadow-sm transition-shadow hover:shadow-md">
+                <CardHeader className="p-0 pb-4">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 shadow-sm">
+                    <CardTitle className="text-base text-blue-800 font-bold flex items-center gap-2">
                       <Lightbulb className="h-5 w-5 text-blue-600" />
-                    </div>
-                    <CardTitle className="text-base text-blue-800 font-bold">Recommendations</CardTitle>
+                      Recommendations
+                    </CardTitle>
                     <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium bg-blue-100/80 text-blue-700 border border-blue-200">
                       <Sparkles className="h-3 w-3" />
                       AI
                     </span>
                   </div>
                 </CardHeader>
-                <CardContent className="pt-0">
-                  <ul className="space-y-3">
+                <CardContent className="p-0">
+                  <ul className="space-y-4">
                     {displayedEvaluation.recommendations.map((rec, i) => (
                       <li key={i} className="flex items-start gap-2.5 text-sm text-blue-900/90">
                         <Lightbulb className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
@@ -3008,6 +3007,7 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
           </div>
         </DialogContent>
       </Dialog>
+      </div>
     </div>
   );
 }
