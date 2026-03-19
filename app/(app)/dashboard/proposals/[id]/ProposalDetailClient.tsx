@@ -1005,8 +1005,8 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
   const StatusIcon = statusIcons[proposal.status];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-indigo-50/40 via-white to-blue-50/30 -m-6 p-6">
-      <div className="rounded-3xl bg-white/90 backdrop-blur-sm border border-slate-200/80 shadow-sm p-6 space-y-6 animate-in fade-in duration-500">
+    <div className="bg-gradient-to-b from-indigo-50 via-white to-blue-50 min-h-screen p-6">
+      <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex items-center gap-4">
         <Link href="/dashboard/proposals">
           <Button variant="ghost" size="sm">
@@ -1016,32 +1016,13 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
         </Link>
       </div>
 
-      {/* Hero header - premium AI workspace */}
-      <div className="rounded-3xl border border-indigo-100 bg-gradient-to-r from-indigo-50 to-blue-50 p-6 transition-shadow hover:shadow-md">
-        <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
-          <div className="space-y-2">
-            <h1 className="text-2xl font-bold text-slate-900">{proposal.name}</h1>
-            <p className="text-sm text-slate-500 font-mono">{proposal.id}</p>
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm text-slate-600">
-              <span className="flex items-center gap-1.5">
-                <Building className="h-4 w-4 text-indigo-500" />
-                {proposal.fund || "—"}
-              </span>
-              <span className="flex items-center gap-1.5">
-                <DollarSign className="h-4 w-4 text-indigo-500" />
-                {formatAmount(proposal.amount)}
-              </span>
-              <span className="flex items-center gap-1.5">
-                <Calendar className="h-4 w-4 text-indigo-500" />
-                {proposal.submittedAt}
-              </span>
-              <span className="flex items-center gap-1.5">
-                <Target className="h-4 w-4 text-indigo-500" />
-                {proposal.stage || "—"}
-              </span>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
+      {/* Hero header */}
+      <div className="rounded-2xl bg-gradient-to-r from-indigo-100 to-blue-100 p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-xl font-bold text-slate-900">{proposal.name}</h1>
+          <p className="text-sm text-gray-500 font-mono mt-0.5">{proposal.id}</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
             <Button
               variant="outline"
               size="sm"
@@ -1094,7 +1075,7 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
-        <Card className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden transition-shadow hover:shadow-md">
+        <Card className="rounded-2xl border border-gray-200 bg-white shadow-md p-5 overflow-hidden">
           <CardHeader>
             <div className="flex items-center gap-2">
               <FileText className="h-5 w-5 text-primary" />
@@ -1134,7 +1115,7 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-visible transition-shadow hover:shadow-md">
+        <Card className="rounded-2xl border border-gray-200 bg-white shadow-md p-5 overflow-visible">
           <CardHeader>
             <div className="flex items-center gap-2">
               <Activity className="h-5 w-5 text-primary" />
@@ -1503,7 +1484,7 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
       </DataCard>
 
       {/* Analyst Workspace Tabs */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
+      <div className="rounded-2xl border border-gray-200 bg-white shadow-md p-5">
         <Tabs defaultValue="documents" className="space-y-6">
           <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid rounded-xl border border-slate-200 bg-slate-100/80 p-1.5 shadow-sm">
           <TabsTrigger value="documents" className="gap-2">
@@ -1526,11 +1507,11 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
 
         {/* Documents Tab: Upload Panel + Extracted Data Preview */}
         <TabsContent value="documents" className="space-y-8 mt-6">
-      {/* Proposal Documents - premium card */}
+      {/* Proposal Documents */}
       <DataCard
         title="Proposal Documents"
         description="Upload and manage documents for this proposal. Supported: PDF, DOC, DOCX, XLS, XLSX (max 25MB)"
-        className="rounded-2xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md"
+        className="rounded-2xl border border-gray-200 bg-white shadow-md p-5"
         actions={
           <div className="flex items-center gap-2">
             <Button
@@ -2230,73 +2211,34 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
               </div>
             )}
 
-            {/* Fit Score - hero centerpiece */}
-            <div className="flex flex-col items-center gap-6 p-6 rounded-2xl border border-indigo-100 bg-gradient-to-r from-indigo-50 to-blue-50 text-center transition-shadow hover:shadow-md">
-              <div className="flex flex-col items-center gap-4">
-                {displayedEvaluation.inputs.proposalDocuments === 0 && displayedEvaluation.inputs.mandateTemplates === 0 ? (
-                  <div className="flex items-center justify-center w-40 h-40 rounded-full bg-slate-100 ring-4 ring-slate-200">
-                    <span className="text-6xl font-bold text-slate-400">—</span>
-                  </div>
-                ) : (
-                  <div className={`flex items-center justify-center w-40 h-40 rounded-full ring-[6px] ${
-                    displayedEvaluation.fitScore !== null ? getScoreBg(displayedEvaluation.fitScore) : "bg-slate-100"
-                  } ${
-                    displayedEvaluation.fitScore !== null && displayedEvaluation.fitScore >= 70 ? "ring-emerald-300 shadow-lg" :
-                    displayedEvaluation.fitScore !== null && displayedEvaluation.fitScore >= 50 ? "ring-amber-300 shadow-lg" :
-                    displayedEvaluation.fitScore !== null ? "ring-red-300 shadow-lg" : "ring-slate-200"
-                  }`}>
-                    <span className={`text-7xl font-bold tabular-nums ${
-                      displayedEvaluation.fitScore !== null ? getScoreColor(displayedEvaluation.fitScore) : "text-slate-400"
-                    }`}>
-                      {displayedEvaluation.fitScore !== null ? displayedEvaluation.fitScore : "—"}
-                    </span>
-                  </div>
-                )}
-                <div className="flex flex-col items-center gap-2">
-                  <div className="flex items-center gap-2 flex-wrap justify-center">
-                    <p className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">
-                      {displayedEvaluation.inputs.proposalDocuments === 0 && displayedEvaluation.inputs.mandateTemplates === 0
-                        ? "Insufficient Inputs"
-                        : "Fit Score"}
-                    </p>
-                    {displayedEvaluation.confidence && (
-                      <span className={`inline-flex items-center gap-1 rounded-full px-4 py-2 text-sm font-semibold border-2 ${getConfidenceColor(displayedEvaluation.confidence)}`}>
-                        {displayedEvaluation.confidence === "high" ? "High" : displayedEvaluation.confidence === "medium" ? "Medium" : "Low"} Confidence
-                      </span>
-                    )}
-                  </div>
-                  {displayedEvaluation.inputs.proposalDocuments > 0 && displayedEvaluation.inputs.mandateTemplates > 0 && (
-                    <>
-                      <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium bg-indigo-100 text-indigo-700 border border-indigo-200">
-                        <Sparkles className="h-3.5 w-3.5" />
-                        AI Scored
-                      </span>
-                      <p className="text-sm text-muted-foreground text-center">
-                        Based on {displayedEvaluation.inputs.proposalDocuments} document(s) and {displayedEvaluation.inputs.mandateTemplates} template(s)
-                      </p>
-                    </>
-                  )}
-                </div>
-              </div>
-              <div className="text-center text-sm text-muted-foreground">
-                <p>Evaluated {formatDate(displayedEvaluation.evaluatedAt)}</p>
-                <p>by {displayedEvaluation.evaluatedByEmail}</p>
-                <div className="flex items-center justify-center gap-2 mt-2 flex-wrap">
-                  {displayedEvaluation.engineType === "azure-openai" ? (
-                    <span className="inline-flex rounded-full px-3 py-1 text-xs bg-blue-100 text-blue-700">
-                      Azure OpenAI: {displayedEvaluation.model}
-                    </span>
-                  ) : displayedEvaluation.engineType === "llm" ? (
-                    <span className="inline-flex rounded-full px-3 py-1 text-xs bg-primary/10 text-primary">
-                      LLM: {displayedEvaluation.model}
-                    </span>
-                  ) : (
-                    <span className="inline-flex rounded-full px-3 py-1 text-xs bg-amber-100 text-amber-700">
-                      Stub Engine
-                    </span>
-                  )}
-                </div>
-              </div>
+            {/* Fit Score - BIG centerpiece */}
+            <div className={`flex flex-col items-center justify-center gap-4 p-6 rounded-2xl border shadow-md text-center ${
+              displayedEvaluation.inputs.proposalDocuments > 0 && displayedEvaluation.inputs.mandateTemplates > 0 && displayedEvaluation.fitScore !== null
+                ? `${getScoreBg(displayedEvaluation.fitScore)} border-gray-200`
+                : "bg-white border-gray-200"
+            }`}>
+              {displayedEvaluation.inputs.proposalDocuments === 0 && displayedEvaluation.inputs.mandateTemplates === 0 ? (
+                <span className="text-4xl font-bold text-slate-400">—</span>
+              ) : (
+                <span className={`text-4xl font-bold tabular-nums ${
+                  displayedEvaluation.fitScore !== null ? getScoreColor(displayedEvaluation.fitScore) : "text-slate-400"
+                }`}>
+                  {displayedEvaluation.fitScore !== null ? displayedEvaluation.fitScore : "—"}
+                </span>
+              )}
+              <p className="text-lg font-semibold text-slate-700">
+                {displayedEvaluation.inputs.proposalDocuments === 0 && displayedEvaluation.inputs.mandateTemplates === 0
+                  ? "Insufficient Inputs"
+                  : "Fit Score"}
+              </p>
+              {displayedEvaluation.confidence && (
+                <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium border ${getConfidenceColor(displayedEvaluation.confidence)}`}>
+                  {displayedEvaluation.confidence === "high" ? "High" : displayedEvaluation.confidence === "medium" ? "Medium" : "Low"} Confidence
+                </span>
+              )}
+              <p className="text-sm text-muted-foreground">
+                Evaluated {formatDate(displayedEvaluation.evaluatedAt)} by {displayedEvaluation.evaluatedByEmail}
+              </p>
             </div>
 
             {/* Structured Scores Section */}
@@ -2501,10 +2443,10 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
               )}
             </div>
 
-            {/* Strengths, Risks, Recommendations - 3-column layout */}
+            {/* Strengths, Risks, Recommendations - 3 cards side by side */}
             <div className="grid md:grid-cols-3 gap-6">
-              {/* Strengths - green tint */}
-              <Card className="rounded-2xl border border-emerald-200 bg-gradient-to-b from-emerald-50/80 to-white p-5 shadow-sm transition-shadow hover:shadow-md">
+              {/* Strengths */}
+              <Card className="rounded-2xl border border-gray-200 bg-white shadow-md p-5">
                 <CardHeader className="p-0 pb-4">
                   <div className="flex items-center gap-2 flex-wrap">
                     <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 shadow-sm">
@@ -2532,8 +2474,8 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
                 </CardContent>
               </Card>
 
-              {/* Risks - rose/amber tint */}
-              <Card className="rounded-2xl border border-rose-200 bg-gradient-to-b from-rose-50/80 to-amber-50/30 p-5 shadow-sm transition-shadow hover:shadow-md">
+              {/* Risks */}
+              <Card className="rounded-2xl border border-gray-200 bg-white shadow-md p-5">
                 <CardHeader className="p-0 pb-4">
                   <div className="flex items-center justify-between gap-2 flex-wrap">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -2569,8 +2511,8 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
                 </CardContent>
               </Card>
 
-              {/* Recommendations - blue tint */}
-              <Card className="rounded-2xl border border-blue-200 bg-gradient-to-b from-blue-50/80 to-cyan-50/30 p-5 shadow-sm transition-shadow hover:shadow-md">
+              {/* Recommendations */}
+              <Card className="rounded-2xl border border-gray-200 bg-white shadow-md p-5">
                 <CardHeader className="p-0 pb-4">
                   <div className="flex items-center gap-2 flex-wrap">
                     <CardTitle className="text-base text-blue-800 font-bold flex items-center gap-2">
@@ -3007,7 +2949,6 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
           </div>
         </DialogContent>
       </Dialog>
-      </div>
     </div>
   );
 }
