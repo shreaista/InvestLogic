@@ -1984,8 +1984,8 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
               )}
               Evaluate Proposal
             </Button>
-            {/* Report Generation Buttons */}
-            {displayedEvaluation ? (
+            {/* Report Generation Buttons - visible after at least one evaluation exists */}
+            {evaluations.length > 0 && (
               <>
                 <Button
                   size="sm"
@@ -2013,19 +2013,6 @@ export default function ProposalDetailClient({ proposal, canAssign, canManageDoc
                   </Button>
                 )}
               </>
-            ) : (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground" title="Run evaluation first to generate a report.">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled
-                  className="border-muted-foreground/30 opacity-60 cursor-not-allowed"
-                >
-                  <FileOutput className="h-4 w-4 mr-1" />
-                  Generate Evaluation Report
-                </Button>
-                <span className="hidden sm:inline">Run evaluation first to generate a report.</span>
-              </div>
             )}
           </div>
         }
