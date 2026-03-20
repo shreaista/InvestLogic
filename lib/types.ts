@@ -1,5 +1,15 @@
 export type Role = "saas_admin" | "tenant_admin" | "fund_manager" | "assessor" | "viewer";
 
+export interface Fund {
+  id: string;
+  tenantId: string;
+  name: string;
+  code?: string;
+  status: "active" | "inactive";
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface SessionPayload {
   userId: string;
   email: string;

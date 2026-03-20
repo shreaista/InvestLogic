@@ -6,7 +6,7 @@ import {
   getLinkedMandates,
   getFundMandateLinks,
   unlinkMandateFromFund,
-} from "@/lib/mock/fundsStore";
+} from "@/lib/db/funds";
 import { listFundMandates, getFundMandateById } from "@/lib/mock/fundMandates";
 import {
   uploadBlob,
@@ -49,7 +49,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     let fund = null;
     try {
-      fund = getFundById(tenantId, fundId);
+      fund = await getFundById(tenantId, fundId);
     } catch (err) {
       console.error("[fundMandates] Error fetching fund:", err);
     }
@@ -69,13 +69,13 @@ export async function GET(request: NextRequest, context: RouteContext) {
     let allMandates: ReturnType<typeof listFundMandates> = [];
     
     try {
-      linkedMandateIds = getLinkedMandates(tenantId, fundId);
+      linkedMandateIds = await getLinkedMandates(tenantId, fundId);
     } catch (err) {
       console.error("[fundMandates] Error getting linked mandates:", err);
     }
     
     try {
-      links = getFundMandateLinks(tenantId, fundId);
+      links = await getFundMandateLinks(tenantId, fundId);
     } catch (err) {
       console.error("[fundMandates] Error getting mandate links:", err);
     }
@@ -86,8 +86,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
       console.error("[fundMandates] Error listing mandates:", err);
     }
 
-    const linkedMandates = linkedMandateIds
-      .map((id) => {
+    const linkedMandates = await Promise.all(
+      linkedMandateIds.map(async (id) => {
         try {
           const mandate = getFundMandateById(tenantId, id);
           const link = links.find((l) => l.mandateId === id);
@@ -97,13 +97,14 @@ export async function GET(request: NextRequest, context: RouteContext) {
           return null;
         }
       })
-      .filter(Boolean);
+    );
+    const linkedMandatesFiltered = linkedMandates.filter(Boolean);
 
     const availableMandates = allMandates.filter(
       (m) => !linkedMandateIds.includes(m.id)
     );
 
-    const mandates = [...linkedMandates, ...availableMandates];
+    const mandates = [...linkedMandatesFiltered, ...availableMandates];
     
     console.log("[fundMandates] returning", mandates.length, "mandates for fundId:", fundId);
 
@@ -113,7 +114,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
         fundId,
         mandates,
         fund,
-        linkedMandates,
+        linkedMandates: linkedMandatesFiltered,
         availableMandates,
       },
     });
@@ -259,7 +260,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       throw new AuthzHttpError(400, "mandateId query parameter is required");
     }
 
-    const unlinked = unlinkMandateFromFund(tenantId, fundId, mandateId);
+    const unlinked = await unlinkMandateFromFund(tenantId, fundId, mandateId);
 
     if (!unlinked) {
       throw new AuthzHttpError(404, "Link not found");

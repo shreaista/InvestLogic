@@ -5,7 +5,7 @@ import {
   requireTenant,
   jsonError,
 } from "@/lib/authz";
-import { listAssessorsForTenant } from "@/lib/mock/proposalsStore";
+import { listAssessorsForTenant } from "@/lib/db/users";
 
 export async function GET() {
   try {
@@ -13,7 +13,7 @@ export async function GET() {
     requireUserRole(user, ["tenant_admin", "saas_admin"]);
     const tenantId = requireTenant(user);
 
-    const assessors = listAssessorsForTenant(tenantId);
+    const assessors = await listAssessorsForTenant(tenantId);
 
     return NextResponse.json({
       ok: true,

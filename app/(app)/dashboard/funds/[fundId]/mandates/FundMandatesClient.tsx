@@ -24,7 +24,7 @@ import {
   AlertCircle,
   Settings,
 } from "lucide-react";
-import type { Fund } from "@/lib/mock/fundsStore";
+import type { Fund } from "@/lib/types";
 import type { FundMandateTemplate, FundMandateStatus } from "@/lib/mock/fundMandates";
 
 const mandateStatusVariants: Record<FundMandateStatus, "success" | "warning" | "muted"> = {

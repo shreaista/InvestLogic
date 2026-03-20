@@ -5,10 +5,7 @@ import {
   requireTenant,
   jsonError,
 } from "@/lib/authz";
-import { listFunds, createFund, type CreateFundInput } from "@/lib/mock/fundsStore";
-import { FUNDS_FILE_PATH } from "@/lib/storage/fundsPersistence";
-
-const STORAGE_SOURCE = `fundsStore (durable JSON: ${FUNDS_FILE_PATH})`;
+import { listFunds, createFund, type CreateFundInput } from "@/lib/db/funds";
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,14 +13,13 @@ export async function GET(request: NextRequest) {
     requireUserRole(user, ["tenant_admin", "saas_admin"]);
     const tenantId = requireTenant(user);
 
-    const funds = listFunds(tenantId);
+    const funds = await listFunds(tenantId);
     const rawCount = funds.length;
     const fundIds = funds.map((f) => f.id);
     const fundNames = funds.map((f) => f.name);
 
     console.log("[Funds API] GET", {
       tenantId,
-      source: STORAGE_SOURCE,
       rawCount,
       fundIds,
       fundNames,
@@ -34,7 +30,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         ok: true,
         tenantId,
-        source: STORAGE_SOURCE,
         count: rawCount,
         funds: funds.map((f) => ({ id: f.id, name: f.name, code: f.code, status: f.status })),
       });
@@ -60,37 +55,25 @@ export async function POST(request: NextRequest) {
     const code = body?.code;
     const incomingPayload = { name, code };
 
-    console.log("[Funds API] POST", {
-      tenantId,
-      incomingPayload,
-      storageDestination: FUNDS_FILE_PATH,
-    });
+    console.log("[Funds API] POST", { tenantId, incomingPayload });
 
-    const result = createFund(tenantId, { name, code } as CreateFundInput);
+    const result = await createFund(tenantId, { name, code } as CreateFundInput);
 
     if (!result.ok) {
-      console.error("[Funds API] POST create failure:", result.error, "debug:", result.debug);
-      const isDev = process.env.NODE_ENV !== "production";
+      console.error("[Funds API] POST create failure:", result.error);
       return NextResponse.json(
-        {
-          ok: false,
-          error: result.error || "Failed to create fund",
-          ...(isDev && result.debug && { debug: result.debug }),
-        },
+        { ok: false, error: result.error || "Failed to create fund" },
         { status: 400 }
       );
     }
 
     const createdFundId = result.fund?.id;
     const createdFundName = result.fund?.name;
-    const persistedCount = listFunds(tenantId).length;
 
     console.log("[Funds API] POST success", {
       tenantId,
       createdFundId,
       createdFundName,
-      storageDestination: FUNDS_FILE_PATH,
-      persistedTotalCount: persistedCount,
     });
 
     return NextResponse.json({

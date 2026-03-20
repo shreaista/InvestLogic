@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/select";
 import { ArrowLeft, Loader2, AlertCircle, X } from "lucide-react";
 import { loadFunds as loadFundsFromApi, filterActiveFunds } from "@/lib/funds/loadFunds";
-import type { Fund } from "@/lib/mock/fundsStore";
+import type { Fund } from "@/lib/types";
 
 const STAGES = [
   "Seed",

@@ -3,7 +3,7 @@
  * Used by FundsClient and NewProposalClient so both show the same fund list.
  */
 
-import type { Fund } from "@/lib/mock/fundsStore";
+import type { Fund } from "@/lib/types";
 
 export const FUNDS_API_URL = "/api/tenant/funds";
 

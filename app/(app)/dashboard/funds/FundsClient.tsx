@@ -60,7 +60,7 @@ import {
   History,
 } from "lucide-react";
 import type { FundMandateTemplate, FundMandateStatus } from "@/lib/mock/fundMandates";
-import type { Fund } from "@/lib/mock/fundsStore";
+import type { Fund } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 

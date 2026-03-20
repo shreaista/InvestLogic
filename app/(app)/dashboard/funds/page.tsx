@@ -1,6 +1,6 @@
 import { requireRoleWithTenantContext, getAuthzContext } from "@/lib/authz";
 import { listFundMandates, type FundMandateTemplate } from "@/lib/mock/fundMandates";
-import { listFunds, type Fund } from "@/lib/mock/fundsStore";
+import { listFunds, type Fund } from "@/lib/db/funds";
 import FundsClient from "./FundsClient";
 
 export default async function FundsPage() {
@@ -10,7 +10,7 @@ export default async function FundsPage() {
   const fundMandatesEnabled = ctx.entitlements?.fundMandatesEnabled ?? false;
   const canManageFundMandates = ctx.entitlements?.canManageFundMandates ?? false;
 
-  const funds: Fund[] = listFunds(tenantId);
+  const funds: Fund[] = await listFunds(tenantId);
   let mandates: FundMandateTemplate[] = [];
 
   if (fundMandatesEnabled) {

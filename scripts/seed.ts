@@ -1,0 +1,87 @@
+/**
+ * Seed script: creates initial tenant and users for production.
+ * Run: npx tsx scripts/seed.ts
+ */
+
+import Database from "better-sqlite3";
+import bcrypt from "bcryptjs";
+import { drizzle } from "drizzle-orm/better-sqlite3";
+import * as schema from "../lib/db/schema";
+import path from "path";
+
+const dbPath = process.env.DATABASE_PATH ?? path.join(process.cwd(), "data", "ipa.db");
+const sqlite = new Database(dbPath);
+const db = drizzle(sqlite, { schema });
+
+const now = new Date().toISOString();
+
+async function hash(pwd: string): Promise<string> {
+  return bcrypt.hash(pwd, 10);
+}
+
+async function main() {
+  // Tenant
+  try {
+    await db.insert(schema.tenants).values({
+      id: "tenant-001",
+      name: "Default Tenant",
+      slug: "default",
+      createdAt: now,
+      updatedAt: now,
+    });
+  } catch {
+    // Already exists
+  }
+
+  // Users (same as legacy mock - for migration)
+  const users = [
+    { id: "user-001", email: "admin@ipa.com", password: "Admin#123", name: "SaaS Admin", role: "saas_admin" as const, tenantId: null },
+    { id: "user-002", email: "tenant@ipa.com", password: "Tenant#123", name: "Tenant Admin", role: "tenant_admin" as const, tenantId: "tenant-001" },
+    { id: "user-003", email: "assessor@ipa.com", password: "Assess#123", name: "Analyst", role: "assessor" as const, tenantId: "tenant-001" },
+    { id: "user-004", email: "fundmanager@ipa.com", password: "Fund#123", name: "Fund Manager", role: "fund_manager" as const, tenantId: "tenant-001" },
+    { id: "user-005", email: "viewer@ipa.com", password: "View#123", name: "Viewer", role: "viewer" as const, tenantId: "tenant-001" },
+  ];
+
+  for (const u of users) {
+    try {
+      const passwordHash = await hash(u.password);
+      await db.insert(schema.users).values({
+        id: u.id,
+        email: u.email,
+        passwordHash,
+        name: u.name,
+        role: u.role,
+        tenantId: u.tenantId,
+        createdAt: now,
+        updatedAt: now,
+      });
+    } catch {
+      // Already exists
+    }
+  }
+
+  // Default entitlements for tenant
+  try {
+    await db.insert(schema.tenantEntitlements).values({
+    tenantId: "tenant-001",
+    maxAssessors: 15,
+    maxUploadsPerAssessment: 10,
+    maxReportsPerMonth: 50,
+    fundMandatesEnabled: true,
+    canManageFundMandates: true,
+    updatedAt: now,
+  });
+  } catch {
+    // Already exists
+  }
+
+  console.log("Seed complete. Users: admin@ipa.com, tenant@ipa.com, assessor@ipa.com, fundmanager@ipa.com, viewer@ipa.com");
+}
+
+main()
+  .then(() => process.exit(0))
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(() => sqlite.close());

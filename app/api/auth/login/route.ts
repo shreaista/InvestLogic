@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { signSession } from "@/lib/auth";
-import { validateCredentials } from "@/lib/users";
+import { validateCredentials } from "@/lib/db/users";
 import { logAuthEvent } from "@/lib/rbac";
 
 export async function POST(request: NextRequest) {
@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const user = validateCredentials(email, password);
+    const user = await validateCredentials(email, password);
 
     if (!user) {
       await logAuthEvent("auth.login_failed", email, false, ipAddress, {
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
       email: user.email,
       role: user.role,
       name: user.name,
-      tenantId: user.tenantId,
+      tenantId: user.tenantId ?? undefined,
     });
 
     await logAuthEvent("auth.login", user.email, true, ipAddress, {

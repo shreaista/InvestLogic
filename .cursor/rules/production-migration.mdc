@@ -1,0 +1,30 @@
+---
+description: IPA production migration - DB-backed data, RBAC, no mock/sample data
+globs: lib/mock/**/*.ts, lib/db/**/*.ts, app/api/**/*.ts
+alwaysApply: false
+---
+
+# IPA Production Migration
+
+## Completed
+- Database: Drizzle + SQLite in `lib/db/`
+- Users & Auth: `lib/db/users.ts`, login uses DB
+- Funds: `lib/db/funds.ts`, all fund APIs use DB
+- Run `npm run db:seed` to create initial tenant + users
+
+## When Replacing Mock Modules
+1. Create `lib/db/<entity>.ts` with async functions
+2. Update API routes to `await` and use DB
+3. Update pages to `await` server data
+4. Use `lib/types` for shared types (client-safe)
+5. Keep `server-only` in DB modules
+
+## RBAC
+- Use `requireRBACPermission(session, PERMISSIONS.X)` in API routes
+- Resolve `tenantId` from `requireTenant(session)` and filter all queries
+- Roles: saas_admin, tenant_admin, fund_manager, assessor, viewer
+
+## No Sample Data
+- Remove hardcoded seeds from mock files
+- If no data exists, show empty state with CTA
+- Audit log should persist to `audit_log` table

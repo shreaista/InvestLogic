@@ -10,15 +10,7 @@ import {
 } from "@/lib/authz";
 import { logAdminAction } from "@/lib/rbac";
 import { assertCanCreateAssessor, isEntitlementError } from "@/lib/entitlements";
-import { productionMode } from "@/lib/config/productionMode";
-
-const SEED_USER_IDS = ["user-001", "user-002", "user-003"];
-
-const mockUsers = [
-  { id: "user-001", email: "admin@acme.org", name: "Admin User", role: "tenant_admin", tenantId: "tenant-001" },
-  { id: "user-002", email: "assessor1@acme.org", name: "Assessor One", role: "assessor", tenantId: "tenant-001" },
-  { id: "user-003", email: "assessor2@acme.org", name: "Assessor Two", role: "assessor", tenantId: "tenant-001" },
-];
+import { listUsersByTenant, listAssessorsForTenant, createUser } from "@/lib/db/users";
 
 export async function GET() {
   try {
@@ -27,10 +19,7 @@ export async function GET() {
     requireRBACPermission(session, RBAC_PERMISSIONS.USER_READ);
     const tenantId = requireTenant(session);
 
-    let users = mockUsers.filter((u) => u.tenantId === tenantId);
-    if (productionMode) {
-      users = users.filter((u) => !SEED_USER_IDS.includes(u.id));
-    }
+    const users = await listUsersByTenant(tenantId);
 
     return NextResponse.json({ ok: true, data: { users } });
   } catch (error) {
@@ -73,20 +62,21 @@ export async function POST(request: NextRequest) {
     }
 
     if (body.role === "assessor") {
-      const currentAssessorCount = 0;
+      const assessors = await listAssessorsForTenant(tenantId);
       assertCanCreateAssessor(
         { tenantId, role: session.role } as Parameters<typeof assertCanCreateAssessor>[0],
-        currentAssessorCount
+        assessors.length
       );
     }
 
-    const newUser = {
-      id: `user-${Date.now()}`,
+    const password = (body as { password?: string }).password ?? `Temp${Date.now()}!`;
+    const newUser = await createUser({
       email: body.email,
       name: body.name || body.email.split("@")[0],
       role: body.role,
       tenantId,
-    };
+      password,
+    });
 
     await logAdminAction(
       { userId: session.userId || "", email: session.email || "", role: session.role, tenantId, permissions: [], name: session.name || "" },
@@ -96,7 +86,10 @@ export async function POST(request: NextRequest) {
       { email: newUser.email, role: newUser.role }
     );
 
-    return NextResponse.json({ ok: true, data: { user: newUser, created: true } }, { status: 201 });
+    return NextResponse.json(
+      { ok: true, data: { user: { ...newUser, tenantId }, created: true } },
+      { status: 201 }
+    );
   } catch (error) {
     if (isEntitlementError(error)) {
       return NextResponse.json(

@@ -23,7 +23,7 @@ import {
   Save,
   Loader2,
 } from "lucide-react";
-import type { Fund } from "@/lib/mock/fundsStore";
+import type { Fund } from "@/lib/types";
 
 const SECTOR_OPTIONS: MultiSelectOption[] = [
   { value: "healthcare", label: "Healthcare" },

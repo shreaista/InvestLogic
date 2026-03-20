@@ -1,5 +1,5 @@
 import { requireRoleWithTenantContext } from "@/lib/authz";
-import { getFundById } from "@/lib/mock/fundsStore";
+import { getFundById } from "@/lib/db/funds";
 import { redirect } from "next/navigation";
 import FundConfigClient from "./FundConfigClient";
 
@@ -11,7 +11,7 @@ export default async function FundConfigPage({ params }: PageProps) {
   const { tenantId } = await requireRoleWithTenantContext(["tenant_admin", "saas_admin"]);
   const { fundId } = await params;
 
-  const fund = getFundById(tenantId, fundId);
+  const fund = await getFundById(tenantId, fundId);
   if (!fund) {
     redirect("/dashboard/funds");
   }

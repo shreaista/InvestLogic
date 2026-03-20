@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthzContext, jsonError, AuthzHttpError } from "@/lib/authz";
 import { requireActiveTenantId } from "@/lib/tenantContext";
-import { getFundById, updateFund, deleteFund, type UpdateFundInput } from "@/lib/mock/fundsStore";
+import { getFundById, updateFund, deleteFund, type UpdateFundInput } from "@/lib/db/funds";
 
 interface RouteContext {
   params: Promise<{ fundId: string }>;
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       throw new AuthzHttpError(403, "Only administrators can view fund details");
     }
 
-    const fund = getFundById(tenantId, fundId);
+    const fund = await getFundById(tenantId, fundId);
 
     if (!fund) {
       throw new AuthzHttpError(404, "Fund not found");
@@ -60,7 +60,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     const body: UpdateFundInput = await request.json();
 
-    const result = updateFund(tenantId, fundId, body);
+    const result = await updateFund(tenantId, fundId, body);
 
     if (!result.ok) {
       throw new AuthzHttpError(400, result.error || "Failed to update fund");
@@ -93,7 +93,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       throw new AuthzHttpError(403, "Only administrators can delete funds");
     }
 
-    const deleted = deleteFund(tenantId, fundId);
+    const deleted = await deleteFund(tenantId, fundId);
 
     if (!deleted) {
       throw new AuthzHttpError(404, "Fund not found");
