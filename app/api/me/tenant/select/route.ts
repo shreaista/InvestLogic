@@ -1,12 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionSafe } from "@/lib/session";
 import { TENANT_COOKIE_NAME } from "@/lib/tenantContext";
-
-const ALLOWED_TENANTS: Record<string, string[]> = {
-  "saas_admin": ["tenant-001", "tenant-002", "tenant-003"],
-  "tenant_admin": ["tenant-001", "tenant-002"],
-  "assessor": ["tenant-001"],
-};
+import { listTenants } from "@/lib/db/tenants";
+import { findUserById } from "@/lib/db/users";
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,17 +16,25 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { tenantId } = body;
+    const tenantId = typeof body?.tenantId === "string" ? body.tenantId.trim() : "";
 
-    if (!tenantId || typeof tenantId !== "string") {
+    if (!tenantId) {
       return NextResponse.json(
         { ok: false, error: "tenantId is required" },
         { status: 400 }
       );
     }
 
-    const allowedTenants = ALLOWED_TENANTS[user.role] || [];
-    if (!allowedTenants.includes(tenantId)) {
+    let allowedTenantIds: string[] = [];
+    if (user.role === "saas_admin") {
+      const tenants = await listTenants();
+      allowedTenantIds = tenants.map((t) => t.id);
+    } else {
+      const dbUser = await findUserById(user.userId ?? "");
+      if (dbUser?.tenantId) allowedTenantIds = [dbUser.tenantId];
+    }
+
+    if (!allowedTenantIds.includes(tenantId)) {
       return NextResponse.json(
         { ok: false, error: "You do not have access to this tenant" },
         { status: 403 }

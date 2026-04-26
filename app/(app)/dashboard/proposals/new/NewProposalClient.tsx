@@ -56,7 +56,6 @@ export default function NewProposalClient({ initialFunds }: NewProposalClientPro
 
   const activeFromInitial = filterActiveFunds(initialFunds);
   const [funds, setFunds] = useState<Fund[]>(activeFromInitial);
-  const [rawFundsCount, setRawFundsCount] = useState(initialFunds.length);
   const [fundsLoading, setFundsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -79,19 +78,9 @@ export default function NewProposalClient({ initialFunds }: NewProposalClientPro
     setFundsLoading(true);
     const result = await loadFundsFromApi();
     if (result.ok && result.funds) {
-      const rawList = result.funds;
-      const activeList = filterActiveFunds(rawList);
-      setRawFundsCount(rawList.length);
+      const activeList = filterActiveFunds(result.funds);
       setFunds(activeList);
       clientDataAuthoritativeRef.current = true;
-      console.log(
-        "[NewProposal] Client loadFunds: raw count:",
-        rawList.length,
-        "active count:",
-        activeList.length,
-        "option labels:",
-        activeList.map((f) => (f.code ? `${f.name} (${f.code})` : f.name))
-      );
     } else {
       console.warn("[NewProposal] loadFunds failed, keeping existing. Error:", result.error);
     }
@@ -104,10 +93,18 @@ export default function NewProposalClient({ initialFunds }: NewProposalClientPro
 
   useEffect(() => {
     if (clientDataAuthoritativeRef.current) return;
-    console.log("[NewProposal] SSR initialFunds applied, count:", initialFunds.length, "ids:", initialFunds.map((f) => f.id));
-    setRawFundsCount(initialFunds.length);
     setFunds(filterActiveFunds(initialFunds));
   }, [initialFunds]);
+
+  /** Drop selection if SSR id is not a real Postgres fund_id (e.g. SQLite id) once /api/funds list loads. */
+  useEffect(() => {
+    if (funds.length === 0) return;
+    setForm((prev) => {
+      if (!prev.fundId) return prev;
+      if (funds.some((f) => f.id === prev.fundId)) return prev;
+      return { ...prev, fundId: "" };
+    });
+  }, [funds]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(e.target.files ?? []);
@@ -176,35 +173,36 @@ export default function NewProposalClient({ initialFunds }: NewProposalClientPro
 
     setIsSubmitting(true);
     try {
-      const payload = {
-        name: form.name.trim(),
-        company: form.company.trim(),
-        sector: form.sector.trim() || undefined,
-        stage: STAGES.includes(form.stage as (typeof STAGES)[number]) ? form.stage : undefined,
-        geography: form.geography.trim() || undefined,
-        businessModel: form.businessModel.trim() || undefined,
-        amountRequested: Number(form.amountRequested),
-        fundId: form.fundId,
-        description: form.description.trim() || undefined,
-      };
+      const fundIdTrim = form.fundId.trim();
+      console.log("[NewProposal] submitted fund_id", fundIdTrim);
 
-      const res = await fetch("/api/tenant/proposals", {
+      const res = await fetch("/api/proposals", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          fund_id: fundIdTrim,
+          proposal_name: form.name.trim(),
+          applicant_name: form.company.trim(),
+          requested_amount: Number(form.amountRequested),
+          sector: form.sector.trim() || null,
+          stage: form.stage.trim() || null,
+          geography: form.geography.trim() || null,
+          business_model: form.businessModel.trim() || null,
+          description: form.description.trim() || null,
+        }),
       });
 
       const data = await res.json();
 
-      if (!data.ok || !data.data?.proposal) {
+      if (!data.ok || !data.proposal_id) {
         setSubmitError(data.error || "Failed to create proposal");
         toast(data.error || "Failed to create proposal", "error");
         setIsSubmitting(false);
         return;
       }
 
-      const proposalId = data.data.proposal.id;
+      const proposalId = data.proposal_id as string;
 
       if (files.length > 0) {
         let uploadFailed = false;
@@ -239,13 +237,6 @@ export default function NewProposalClient({ initialFunds }: NewProposalClientPro
   };
 
   const hasFieldError = (field: string) => !!fieldErrors[field];
-
-  const selectContentProps = {
-    position: "popper" as const,
-    sideOffset: 4,
-    collisionPadding: 12,
-    className: "z-[200]",
-  };
 
   return (
     <div className="space-y-6">
@@ -358,7 +349,11 @@ export default function NewProposalClient({ initialFunds }: NewProposalClientPro
                   <SelectTrigger id="fundId" className={hasFieldError("fundId") ? "border-destructive" : ""}>
                     <SelectValue placeholder={fundsLoading ? "Loading funds..." : "Select fund"} />
                   </SelectTrigger>
-                  <SelectContent {...selectContentProps}>
+                  <SelectContent
+                    position="popper"
+                    sideOffset={4}
+                    className="z-50 bg-white border shadow-md rounded-md"
+                  >
                     {funds.map((f) => (
                       <SelectItem key={f.id} value={f.id}>
                         {f.name}
@@ -367,16 +362,9 @@ export default function NewProposalClient({ initialFunds }: NewProposalClientPro
                     ))}
                   </SelectContent>
                 </Select>
-                {rawFundsCount === 0 && !fundsLoading && (
+                {funds.length === 0 && !fundsLoading && (
                   <p className="text-sm text-muted-foreground">No active funds available. Create a fund first.</p>
                 )}
-                <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
-                  <span>raw: {rawFundsCount}</span>
-                  <span className="mx-2">|</span>
-                  <span>active: {funds.length}</span>
-                  <span className="mx-2">|</span>
-                  <span>labels: [{funds.map((f) => (f.code ? `${f.name} (${f.code})` : f.name)).join(", ")}]</span>
-                </div>
                 {fieldErrors.fundId && (
                   <p className="text-sm text-destructive flex items-center gap-1">
                     <AlertCircle className="h-4 w-4 shrink-0" />
@@ -401,7 +389,11 @@ export default function NewProposalClient({ initialFunds }: NewProposalClientPro
                   <SelectTrigger id="stage">
                     <SelectValue placeholder="Select stage" />
                   </SelectTrigger>
-                  <SelectContent {...selectContentProps}>
+                  <SelectContent
+                    position="popper"
+                    sideOffset={4}
+                    className="z-50 bg-white border shadow-md rounded-md"
+                  >
                     {STAGES.map((s) => (
                       <SelectItem key={s} value={s}>
                         {s}

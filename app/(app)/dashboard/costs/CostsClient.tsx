@@ -114,7 +114,7 @@ function SaaSAdminCosts() {
                   <div key={data.month} className="flex flex-col items-center gap-3 flex-1 max-w-[80px]">
                     <div className="relative w-full group">
                       <div
-                        className="w-full bg-gradient-to-t from-primary to-primary/70 rounded-t-lg transition-all group-hover:from-primary/90 group-hover:to-primary/60"
+                        className="w-full rounded-t-lg bg-primary transition-all group-hover:bg-primary/85"
                         style={{ height: `${height * 1.8}px` }}
                       />
                       <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-foreground text-background text-xs px-2 py-1 rounded whitespace-nowrap">
@@ -132,7 +132,7 @@ function SaaSAdminCosts() {
               })}
             </div>
             <div className="mt-6 pt-4 border-t flex items-center justify-center gap-2 text-xs text-muted-foreground">
-              <div className="h-3 w-3 rounded-sm bg-gradient-to-t from-primary to-primary/70" />
+              <div className="h-3 w-3 rounded-sm bg-primary" />
               Monthly cost trend
             </div>
           </CardContent>
@@ -285,7 +285,7 @@ function TenantCosts() {
                   <div key={data.month} className="flex flex-col items-center gap-3 flex-1 max-w-[80px]">
                     <div className="relative w-full group">
                       <div
-                        className="w-full bg-gradient-to-t from-primary to-primary/70 rounded-t-lg transition-all"
+                        className="w-full rounded-t-lg bg-primary transition-all"
                         style={{ height: `${height * 1.2}px` }}
                       />
                     </div>

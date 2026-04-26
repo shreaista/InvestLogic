@@ -1,107 +1,135 @@
 @import "tailwindcss";
 
+/* Load tailwind.config.ts so bg-primary, bg-nav, hsl(var(--*)), etc. are generated (Tailwind v4). */
+@config "../tailwind.config.ts";
+
 @theme {
   --font-sans: var(--font-inter), system-ui, sans-serif;
   --radius: 0.75rem;
   --radius-lg: 1rem;
+
+  /* IPA brand — explicit hex so utilities always exist even if config merge fails */
+  --color-ipa-shell: #0b1020;
+  --color-ipa-shell-border: #1e293b;
+  --color-ipa-shell-muted: #9ca3af;
+  --color-ipa-shell-item: #d1d5db;
+  --color-ipa-primary: #4f46e5;
+  --color-ipa-primary-hover: #4338ca;
+  /* Slightly cooler than pure white — reads as canvas, not paper */
+  --color-ipa-canvas: #f2f4f7;
+  --color-ipa-border: #e5e7eb;
+  --color-ipa-muted: #6b7280;
+  --color-ipa-success: #22c55e;
+  --color-ipa-warning: #f59e0b;
+  --color-ipa-error: #ef4444;
 }
 
 :root {
-  /* Premium SaaS - neutral light gray background, white cards */
-  --background: 220 14% 96%;
-  --foreground: 220 13% 18%;
+  /* IPA — exact hex mapped to HSL for shadcn / tailwind.config color() bridge */
+  --background: 210 40% 98%;
+  --foreground: 222 47% 11%;
   
   --card: 0 0% 100%;
-  --card-foreground: 220 13% 18%;
+  --card-foreground: 222 47% 11%;
   
   --popover: 0 0% 100%;
-  --popover-foreground: 220 13% 18%;
+  --popover-foreground: 222 47% 11%;
   
-  /* Primary: Indigo / Blue */
-  --primary: 239 84% 55%;
+  /* Primary #4F46E5 · hover #4338CA */
+  --primary: 239 76% 59%;
   --primary-foreground: 0 0% 100%;
-  --primary-hover: 239 84% 48%;
+  --primary-hover: 239 63% 51%;
   
   --secondary: 220 14% 96%;
-  --secondary-foreground: 220 13% 18%;
+  --secondary-foreground: 222 47% 11%;
   
-  --muted: 220 14% 96%;
+  --muted: 210 40% 96%;
   --muted-foreground: 220 9% 46%;
   
-  --accent: 220 14% 94%;
-  --accent-foreground: 220 13% 18%;
+  --accent: 214 32% 94%;
+  --accent-foreground: 222 47% 11%;
   
-  --destructive: 0 72% 51%;
+  --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
   
   --border: 220 13% 91%;
   --input: 220 13% 91%;
-  --ring: 239 84% 55%;
+  --ring: 239 76% 59%;
   
   --sidebar: 0 0% 100%;
-  --sidebar-foreground: 220 13% 18%;
+  --sidebar-foreground: 222 47% 11%;
   --sidebar-border: 220 13% 91%;
-  --sidebar-accent: 220 14% 96%;
+  --sidebar-accent: 210 40% 96%;
   
-  /* Status colors - Premium palette */
+  /* Shell #0B1020 + chrome text (pairs with .bg-ipa-shell) */
+  --sidebar-nav: 222 49% 8%;
+  --sidebar-nav-border: 217 33% 17%;
+  --sidebar-nav-text: 220 14% 93%;
+  --sidebar-nav-muted: 218 11% 65%;
+  
   --success: 142 71% 45%;
   --success-foreground: 0 0% 100%;
   --warning: 38 92% 50%;
-  --warning-foreground: 0 0% 0%;
-  --risk: 0 72% 51%;
+  --warning-foreground: 26 90% 14%;
+  --risk: 0 84% 60%;
   --risk-foreground: 0 0% 100%;
-  --info: 221 83% 53%;
+  --info: 239 76% 59%;
   --info-foreground: 0 0% 100%;
   
-  /* Premium shadows - soft, not heavy */
-  --shadow-soft: 0 1px 3px 0 rgb(0 0 0 / 0.04), 0 1px 2px -1px rgb(0 0 0 / 0.04);
-  --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.04), 0 2px 6px -2px rgb(0 0 0 / 0.06);
-  --shadow-card-hover: 0 4px 6px -1px rgb(0 0 0 / 0.06), 0 10px 15px -3px rgb(0 0 0 / 0.08);
+  /* Premium shadows - soft depth, Stripe/Linear-adjacent */
+  --shadow-soft: 0 1px 2px rgb(15 23 42 / 0.05), 0 4px 12px rgb(15 23 42 / 0.04);
+  --shadow-card: 0 1px 2px rgb(15 23 42 / 0.06), 0 4px 16px rgb(15 23 42 / 0.05);
+  --shadow-card-hover: 0 2px 4px rgb(15 23 42 / 0.06), 0 8px 20px rgb(15 23 42 / 0.07);
 }
 
 .dark {
-  /* Premium SaaS dark theme */
-  --background: 220 13% 9%;
-  --foreground: 220 9% 95%;
+  /* Dark mode — same indigo primary, deeper canvas */
+  --background: 222 47% 6%;
+  --foreground: 210 40% 98%;
   
-  --card: 220 13% 12%;
-  --card-foreground: 220 9% 95%;
+  --card: 222 47% 10%;
+  --card-foreground: 210 40% 98%;
   
-  --popover: 220 13% 12%;
-  --popover-foreground: 220 9% 95%;
+  --popover: 222 47% 10%;
+  --popover-foreground: 210 40% 98%;
   
-  --primary: 239 84% 60%;
+  --primary: 239 76% 59%;
   --primary-foreground: 0 0% 100%;
-  --primary-hover: 239 84% 65%;
+  --primary-hover: 239 76% 52%;
   
-  --secondary: 220 13% 18%;
-  --secondary-foreground: 220 9% 95%;
+  --secondary: 222 35% 14%;
+  --secondary-foreground: 210 40% 98%;
   
-  --muted: 220 13% 18%;
-  --muted-foreground: 220 9% 55%;
+  --muted: 222 35% 14%;
+  --muted-foreground: 215 20% 65%;
   
-  --accent: 220 13% 22%;
-  --accent-foreground: 220 9% 95%;
+  --accent: 222 35% 18%;
+  --accent-foreground: 210 40% 98%;
   
-  --destructive: 0 62.8% 50.6%;
-  --destructive-foreground: 0 0% 98%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
   
-  --border: 220 13% 22%;
-  --input: 220 13% 22%;
-  --ring: 239 84% 60%;
+  --border: 222 35% 18%;
+  --input: 222 35% 18%;
+  --ring: 239 76% 59%;
   
-  --sidebar: 220 13% 10%;
-  --sidebar-foreground: 220 9% 95%;
-  --sidebar-border: 220 13% 18%;
-  --sidebar-accent: 220 13% 18%;
+  --sidebar: 222 47% 8%;
+  --sidebar-foreground: 210 40% 98%;
+  --sidebar-border: 222 35% 18%;
+  --sidebar-accent: 222 35% 14%;
   
-  --success: 142 70% 45%;
+  --sidebar-nav: 218 49% 8%;
+  --sidebar-nav-border: 218 35% 16%;
+  --sidebar-nav-text: 220 14% 71%;
+  --sidebar-nav-muted: 220 12% 46%;
+  
+  --success: 142 71% 45%;
   --success-foreground: 0 0% 100%;
   --warning: 38 92% 50%;
-  --warning-foreground: 0 0% 0%;
-  --risk: 0 62.8% 50.6%;
-  --risk-foreground: 0 0% 98%;
-  --info: 217 91% 60%;
+  --warning-foreground: 26 90% 14%;
+  --risk: 0 84% 60%;
+  --risk-foreground: 0 0% 100%;
+  --info: 239 76% 59%;
   --info-foreground: 0 0% 100%;
   
   --shadow-soft: 0 1px 3px 0 rgb(0 0 0 / 0.2);

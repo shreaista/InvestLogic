@@ -19,10 +19,9 @@ export async function extractDocxText(buffer: Buffer): Promise<string> {
  * @returns The extracted plain text content
  */
 export async function extractPdfText(buffer: Buffer): Promise<string> {
-  const { PDFParse } = await import("pdf-parse");
-  const parser = new PDFParse({ data: buffer });
-  const result = await parser.getText();
-  return result.text;
+  const pdfParse = (await import("pdf-parse")).default;
+  const data = await pdfParse(buffer);
+  return data.text ?? "";
 }
 
 /**

@@ -12,7 +12,7 @@ import {
   PROPOSAL_READ,
   type Proposal,
 } from "@/lib/authz";
-import { getProposalForUser } from "@/lib/mock/proposals";
+import { getProposalRecordPg } from "@/lib/proposals/proposalDetail";
 import { listFundMandates } from "@/lib/storage/azure";
 import { listFundMandateBlobsByFundId } from "@/lib/storage/azureBlob";
 
@@ -43,30 +43,21 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     const { id } = await context.params;
 
-    // Validate proposal access
-    const proposalResult = getProposalForUser({
-      tenantId,
-      userId: ctx.user.id || "",
-      role: ctx.role,
-      proposalId: id,
-    });
-
-    if (proposalResult.accessDenied) {
-      throw new AuthzHttpError(403, "You do not have access to this proposal");
-    }
-
-    if (!proposalResult.proposal) {
+    const record = await getProposalRecordPg(tenantId, id);
+    if (!record) {
       throw new AuthzHttpError(404, "Proposal not found");
     }
 
-    const proposal = proposalResult.proposal as Proposal & { fund: string; fundId?: string };
+    const proposal: Proposal = {
+      id: record.proposal_id,
+      tenantId: record.tenant_id,
+    };
 
-    // If role is assessor, must also pass canAccessProposal
     if (ctx.role === "assessor" && !canAccessProposal(ctx, proposal)) {
       throw new AuthzHttpError(403, "Access denied to this proposal");
     }
 
-    const fundId = proposal.fundId;
+    const fundId = record.fund_id;
 
     if (!fundId) {
       return NextResponse.json({
@@ -115,7 +106,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       data: {
         mandate: {
           mandateId: fundId,
-          mandateName: proposal.fund,
+          mandateName: record.fund_name ?? fundId,
           strategy: "",
           geography: "",
           ticketRange: "",
@@ -128,7 +119,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
         },
         fund: {
           fundId,
-          fundName: proposal.fund,
+          fundName: record.fund_name ?? fundId,
         },
       },
     });

@@ -3,10 +3,10 @@ import "server-only";
 import { getSessionSafe } from "@/lib/session";
 import type { RoleKey } from "./roles";
 import { isValidRole } from "./roles";
-import type { Permission } from "./permissions";
-import { ROLE_PERMISSIONS } from "./rolePermissions";
 import type { Entitlements } from "@/lib/entitlements/types";
 import { getDemoEntitlements } from "@/lib/entitlements/demoEntitlements";
+import { getPermissionsForRole } from "@/lib/rbac/permissions";
+import { getActiveTenantId } from "@/lib/tenantContext";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -26,6 +26,7 @@ export type MyAuthzResult =
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Get My Authorization Context
+// Loads role, tenant_id, permissions from session; used for menu visibility
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function getMyAuthz(): Promise<MyAuthzResult> {
@@ -37,16 +38,17 @@ export async function getMyAuthz(): Promise<MyAuthzResult> {
 
   const role: RoleKey = isValidRole(user.role) ? user.role : "assessor";
   const tenantId: string | null = user.tenantId ?? null;
-  const permissions: readonly Permission[] = ROLE_PERMISSIONS[role] ?? [];
-  const entitlements = getDemoEntitlements(tenantId);
+  const activeTenantId = await getActiveTenantId() ?? tenantId;
+  const permissions = [...getPermissionsForRole(role)];
+  const entitlements = getDemoEntitlements(tenantId ?? activeTenantId);
 
   return {
     ok: true,
     data: {
       role,
       tenantId,
-      activeTenantId: tenantId,
-      permissions: [...permissions],
+      activeTenantId,
+      permissions,
       entitlements,
     },
   };

@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   requireSession,
-  requireUserRole,
   requireTenant,
+  requireRBACPermission,
+  RBAC_PERMISSIONS,
   jsonError,
 } from "@/lib/authz";
 import {
@@ -17,7 +18,7 @@ const STORAGE_SOURCE = `proposalsStore (durable JSON: ${PROPOSALS_FILE_PATH})`;
 export async function GET(request: NextRequest) {
   try {
     const user = await requireSession();
-    requireUserRole(user, ["tenant_admin", "saas_admin"]);
+    requireRBACPermission(user, RBAC_PERMISSIONS.PROPOSAL_READ);
     const tenantId = requireTenant(user);
 
     const proposals = listProposalsWithAssignmentForUser({
@@ -70,7 +71,7 @@ const VALID_STAGES: ProposalStage[] = [
 export async function POST(request: NextRequest) {
   try {
     const user = await requireSession();
-    requireUserRole(user, ["tenant_admin", "saas_admin"]);
+    requireRBACPermission(user, RBAC_PERMISSIONS.PROPOSAL_CREATE);
     const tenantId = requireTenant(user);
 
     const body = await request.json();

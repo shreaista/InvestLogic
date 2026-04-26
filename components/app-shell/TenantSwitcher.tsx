@@ -13,9 +13,11 @@ interface Tenant {
 interface TenantSwitcherProps {
   activeTenantId: string | null;
   role: string;
+  /** Match deep navy app header */
+  darkHeader?: boolean;
 }
 
-export function TenantSwitcher({ activeTenantId, role }: TenantSwitcherProps) {
+export function TenantSwitcher({ activeTenantId, role, darkHeader }: TenantSwitcherProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -74,7 +76,14 @@ export function TenantSwitcher({ activeTenantId, role }: TenantSwitcherProps) {
 
   if (tenantsLoading) {
     return (
-      <div className="flex items-center gap-2 h-9 px-3 rounded-lg border bg-muted/40 text-muted-foreground text-sm">
+      <div
+        className={cn(
+          "flex h-9 items-center gap-2 rounded-lg border px-3 text-sm",
+          darkHeader
+            ? "border-ipa-shell-border bg-white/5 text-ipa-shell-muted"
+            : "border-border bg-muted/40 text-muted-foreground"
+        )}
+      >
         <Loader2 className="h-4 w-4 animate-spin" />
         <span>Loading...</span>
       </div>
@@ -84,13 +93,18 @@ export function TenantSwitcher({ activeTenantId, role }: TenantSwitcherProps) {
   return (
     <div className="relative">
       <button
+        type="button"
         onClick={() => setOpen(!open)}
         disabled={loading}
         className={cn(
-          "flex items-center gap-2 h-9 px-3 rounded-lg border text-sm transition-colors",
-          activeTenantId
-            ? "bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-200 dark:hover:bg-amber-900/30"
-            : "bg-muted/40 border-border text-muted-foreground hover:bg-muted"
+          "flex h-9 items-center gap-2 rounded-lg border text-sm transition-colors",
+          darkHeader
+            ? activeTenantId
+              ? "border-ipa-primary/35 bg-ipa-primary/10 text-white hover:border-ipa-primary/45 hover:bg-ipa-primary/15"
+              : "border-ipa-shell-border bg-white/5 text-ipa-shell-item hover:border-white/10 hover:bg-white/[0.06] hover:text-white"
+            : activeTenantId
+              ? "border-ipa-primary/25 bg-ipa-primary/10 text-ipa-primary hover:bg-ipa-primary/15"
+              : "border-border bg-muted/40 text-muted-foreground hover:bg-muted"
         )}
       >
         {loading ? (

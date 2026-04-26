@@ -1,48 +1,31 @@
-"use client";
-
-import { PageHeader, StatCard, DataCard, StatusBadge } from "@/components/app";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import Link from "next/link";
+import { PageHeader, StatCard, DataCard } from "@/components/app";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import type { DashboardSummaryPayload } from "@/lib/dashboard/dashboardSummaryTypes";
 import {
   FileText,
   Clock,
   CheckCircle,
   AlertTriangle,
-  TrendingUp,
   ArrowRight,
-  Sparkles,
   Target,
   Users,
   DollarSign,
-  Cpu,
   Building2,
   ExternalLink,
+  AlertCircle,
+  ChevronRight,
+  Plus,
+  Upload,
+  ShieldCheck,
+  FileBarChart,
+  Inbox,
+  Activity,
+  FileWarning,
+  Cpu,
 } from "lucide-react";
-import Link from "next/link";
-import {
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-} from "recharts";
-
+import type { LucideIcon } from "lucide-react";
 interface DashboardHomeProps {
   user: {
     id?: string;
@@ -50,520 +33,455 @@ interface DashboardHomeProps {
     name?: string;
     role?: string;
   };
+  tenantId: string | null;
+  snapshot: DashboardSummaryPayload | null;
 }
 
-export default function DashboardHome({ user }: DashboardHomeProps) {
+export default function DashboardHome({ user, tenantId, snapshot }: DashboardHomeProps) {
   const role = user.role || "assessor";
 
-  return (
-    <div className="space-y-6">
-      {role === "saas_admin" && <SaaSAdminOverview />}
-      {(role === "tenant_admin" || role === "fund_manager" || role === "viewer") && <ExecutiveDashboard />}
-      {role === "assessor" && <AssessorOverview />}
-    </div>
-  );
+  if (!tenantId && role === "saas_admin") {
+    return <SaaSGlobalDashboard />;
+  }
+
+  if (tenantId && !snapshot) {
+    return (
+      <div className="rounded-2xl border border-amber-200/80 bg-amber-50/50 p-6 text-sm text-amber-950">
+        Workspace metrics could not be loaded. Check the database connection and try again.
+      </div>
+    );
+  }
+
+  if (!snapshot) {
+    return null;
+  }
+
+  if (role === "saas_admin") {
+    return <TenantDashboard user={user} snapshot={snapshot} variant="saas" />;
+  }
+
+  if (role === "assessor") {
+    return <TenantDashboard user={user} snapshot={snapshot} variant="assessor" />;
+  }
+
+  return <TenantDashboard user={user} snapshot={snapshot} variant="standard" />;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Executive Dashboard - High-level view for tenant admins
-// ─────────────────────────────────────────────────────────────────────────────
-
-const KPI_DATA = [
-  {
-    title: "Total Deals Processed",
-    value: "142",
-    description: "+12% vs last month",
-    trend: "up" as const,
-    icon: FileText,
-  },
-  {
-    title: "Avg Processing Time",
-    value: "2.3 days",
-    description: "-0.4 days vs last month",
-    trend: "up" as const,
-    icon: Clock,
-  },
-  {
-    title: "Approval Rate",
-    value: "68%",
-    description: "+5% vs last month",
-    trend: "up" as const,
-    icon: CheckCircle,
-  },
-  {
-    title: "Risk-Flagged Deals",
-    value: "12%",
-    description: "-2% vs last month",
-    trend: "up" as const,
-    icon: AlertTriangle,
-  },
-];
-
-const DEALS_OVER_TIME = [
-  { week: "Week 1", deals: 28, approved: 18 },
-  { week: "Week 2", deals: 35, approved: 24 },
-  { week: "Week 3", deals: 42, approved: 29 },
-  { week: "Week 4", deals: 37, approved: 26 },
-];
-
-const APPROVAL_REJECTION = [
-  { name: "Approved", count: 97, fill: "hsl(var(--success))" },
-  { name: "Rejected", count: 31, fill: "hsl(var(--destructive))" },
-  { name: "Deferred", count: 14, fill: "hsl(var(--muted-foreground))" },
-];
-
-const RISK_DISTRIBUTION = [
-  { name: "Low", value: 68, color: "hsl(var(--success))" },
-  { name: "Medium", value: 22, color: "hsl(var(--warning))" },
-  { name: "High", value: 10, color: "hsl(var(--destructive))" },
-];
-
-const RECENT_PROPOSALS = [
-  { id: "P-101", name: "Community Arts Program", applicant: "Arts Alliance", amount: "$45,000", status: "New" },
-  { id: "P-102", name: "Youth Sports Initiative", applicant: "Sports Foundation", amount: "$32,000", status: "New" },
-  { id: "P-098", name: "Green Energy Project", applicant: "Eco Solutions", amount: "$78,000", status: "Assigned" },
-  { id: "P-099", name: "Digital Literacy Program", applicant: "Tech For All", amount: "$25,000", status: "Assigned" },
-  { id: "P-095", name: "Senior Wellness Center", applicant: "Elder Care Co", amount: "$120,000", status: "In Review" },
-  { id: "P-096", name: "Food Security Network", applicant: "Hunger Relief", amount: "$55,000", status: "In Review" },
-  { id: "P-090", name: "Healthcare Access", applicant: "Health First", amount: "$150,000", status: "Approved" },
-  { id: "P-092", name: "Transport Subsidy", applicant: "Mobility Aid", amount: "$35,000", status: "Declined" },
-];
-
-const AI_INSIGHTS = `Deal processing volume has increased 12% over the past 30 days, with approval rates trending favorably at 68%. Risk-flagged proposals remain below 15%, indicating strong mandate alignment. Average processing time improved to 2.3 days—consider prioritizing the 3 proposals due this week for IC review.`;
-
-const statusVariant: Record<string, "muted" | "info" | "warning" | "success" | "error"> = {
-  New: "muted",
-  Assigned: "info",
-  "In Review": "warning",
-  Approved: "success",
-  Declined: "error",
-};
-
-function ExecutiveDashboard() {
+function SaaSGlobalDashboard() {
   return (
-    <div className="space-y-8">
+    <div className="space-y-12 lg:space-y-14">
       <PageHeader
-        title="Executive Dashboard"
-        subtitle="High-level overview of deal pipeline and performance"
+        className="mb-0"
+        title="Platform"
+        subtitle="Select a tenant to see investment workspace metrics, or manage tenants and billing."
         actions={
-          <div className="flex items-center gap-2">
-            <Link href="/dashboard/fund-manager">
-              <Button variant="outline" size="sm">
-                Fund Manager
-                <ArrowRight className="h-3.5 w-3.5 ml-2" />
-              </Button>
-            </Link>
-            <Link href="/dashboard/proposals">
-              <Button size="sm">
-                View Proposals
-                <ExternalLink className="h-3.5 w-3.5 ml-2" />
-              </Button>
-            </Link>
-          </div>
-        }
-      />
-
-      {/* KPI Cards - 4 across top */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {KPI_DATA.map((kpi) => (
-          <StatCard
-            key={kpi.title}
-            title={kpi.title}
-            value={kpi.value}
-            description={kpi.description}
-            trend={kpi.trend}
-            icon={kpi.icon}
-          />
-        ))}
-      </div>
-
-      {/* Charts row */}
-      <div className="grid gap-6 lg:grid-cols-3">
-        <DataCard
-          title="Deals Over Time"
-          description="Last 30 days"
-          className="lg:col-span-2"
-        >
-          <div className="h-[280px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={DEALS_OVER_TIME} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
-                <XAxis dataKey="week" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "12px",
-                  }}
-                />
-                <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="deals"
-                  name="Total Deals"
-                  stroke="hsl(var(--primary))"
-                  strokeWidth={2}
-                  dot={{ fill: "hsl(var(--primary))", r: 4 }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="approved"
-                  name="Approved"
-                  stroke="hsl(var(--success))"
-                  strokeWidth={2}
-                  dot={{ fill: "hsl(var(--success))", r: 4 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </DataCard>
-
-        <DataCard title="Risk Distribution" description="By deal risk level">
-          <div className="h-[280px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={RISK_DISTRIBUTION}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={90}
-                  paddingAngle={2}
-                  dataKey="value"
-                  label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
-                >
-                  {RISK_DISTRIBUTION.map((entry, index) => (
-                    <Cell key={entry.name} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "12px",
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </DataCard>
-      </div>
-
-      {/* Approval vs Rejection bar chart - full width */}
-      <DataCard title="Approval vs Rejection" description="Outcomes last 30 days">
-        <div className="h-[240px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={APPROVAL_REJECTION} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} horizontal={false} />
-              <XAxis type="number" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-              <YAxis type="category" dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} width={80} />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "hsl(var(--card))",
-                  border: "1px solid hsl(var(--border))",
-                  borderRadius: "12px",
-                }}
-              />
-              <Bar dataKey="count" name="Deals" radius={[0, 4, 4, 0]}>
-                {APPROVAL_REJECTION.map((entry, index) => (
-                  <Cell key={index} fill={entry.fill} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </DataCard>
-
-      {/* Recent Proposals + AI Insights */}
-      <div className="grid gap-6 lg:grid-cols-3">
-        <DataCard
-          title="Recent Proposals"
-          description="Latest activity"
-          className="lg:col-span-2"
-          actions={
-            <Link href="/dashboard/proposals">
-              <Button variant="ghost" size="sm">
-                View All
-                <ArrowRight className="h-3.5 w-3.5 ml-1" />
-              </Button>
-            </Link>
-          }
-          noPadding
-        >
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Proposal</TableHead>
-                <TableHead className="hidden sm:table-cell">Applicant</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {RECENT_PROPOSALS.map((row) => (
-                <TableRow key={row.id}>
-                  <TableCell>
-                    <Link href={`/dashboard/proposals/${row.id}`} className="font-medium hover:underline">
-                      {row.name}
-                    </Link>
-                    <p className="text-xs text-muted-foreground font-mono">{row.id}</p>
-                  </TableCell>
-                  <TableCell className="hidden sm:table-cell text-muted-foreground">{row.applicant}</TableCell>
-                  <TableCell className="text-right tabular-nums font-medium">{row.amount}</TableCell>
-                  <TableCell>
-                    <StatusBadge variant={statusVariant[row.status] || "muted"}>{row.status}</StatusBadge>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </DataCard>
-
-        <DataCard
-          title="AI Insights Summary"
-          description="Auto-generated analysis"
-          actions={<Sparkles className="h-4 w-4 text-primary" />}
-        >
-          <p className="text-sm text-muted-foreground leading-relaxed font-normal">{AI_INSIGHTS}</p>
-        </DataCard>
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SaaS Admin Overview
-// ─────────────────────────────────────────────────────────────────────────────
-
-function SaaSAdminOverview() {
-  const tenantUsage = [
-    { tenant: "Delta Partners", users: 78, proposals: 256, llmCalls: "28.1K", cost: "$512", trend: "up" },
-    { tenant: "Acme Corp", users: 45, proposals: 128, llmCalls: "12.4K", cost: "$234", trend: "up" },
-    { tenant: "Zeta Ventures", users: 48, proposals: 89, llmCalls: "8.2K", cost: "$156", trend: "neutral" },
-    { tenant: "Beta Inc", users: 12, proposals: 34, llmCalls: "3.2K", cost: "$67", trend: "down" },
-    { tenant: "Gamma LLC", users: 5, proposals: 8, llmCalls: "890", cost: "$18", trend: "neutral" },
-  ];
-
-  const costDrivers = [
-    { name: "GPT-4 Turbo", percentage: 45, amount: "$4,230", color: "bg-violet-500" },
-    { name: "Claude 3 Opus", percentage: 28, amount: "$2,640", color: "bg-blue-500" },
-    { name: "Embeddings", percentage: 15, amount: "$1,410", color: "bg-emerald-500" },
-    { name: "Storage", percentage: 8, amount: "$752", color: "bg-amber-500" },
-    { name: "Compute", percentage: 4, amount: "$368", color: "bg-slate-400" },
-  ];
-
-  return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Platform Overview"
-        subtitle="Real-time metrics across all tenants"
-        actions={
-          <Link href="/dashboard/reports">
-            <Button variant="outline" size="sm">
-              View Reports
-              <ExternalLink className="h-3.5 w-3.5 ml-2" />
+          <Link href="/dashboard/tenants">
+            <Button size="sm" variant="outline">
+              Tenants
+              <ArrowRight className="ml-2 h-3.5 w-3.5" />
             </Button>
           </Link>
         }
       />
-
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Total Tenants" value="24" description="+3 this month" trend="up" icon={Building2} />
-        <StatCard title="Active Users" value="312" description="+28 this week" trend="up" icon={Users} />
-        <StatCard title="Monthly Cost" value="$9,420" description="+12% vs last month" trend="up" icon={DollarSign} />
-        <StatCard title="LLM Requests" value="1.2M" description="Last 30 days" trend="neutral" icon={Cpu} />
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <DataCard
-          title="Tenant Usage"
-          description="Top tenants by activity"
-          actions={
-            <Link href="/dashboard/tenants">
-              <Button variant="ghost" size="sm">
-                View All
-                <ArrowRight className="h-3.5 w-3.5 ml-1" />
-              </Button>
-            </Link>
-          }
-          noPadding
-        >
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Tenant</TableHead>
-                <TableHead className="text-right">Users</TableHead>
-                <TableHead className="text-right hidden sm:table-cell">Proposals</TableHead>
-                <TableHead className="text-right hidden md:table-cell">LLM Calls</TableHead>
-                <TableHead className="text-right">Cost</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {tenantUsage.map((row) => (
-                <TableRow key={row.tenant} className="group">
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <div className="h-8 w-8 rounded-lg bg-muted flex items-center justify-center shrink-0">
-                        <Building2 className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                      <span className="font-medium truncate">{row.tenant}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">{row.users}</TableCell>
-                  <TableCell className="text-right tabular-nums hidden sm:table-cell">{row.proposals}</TableCell>
-                  <TableCell className="text-right text-muted-foreground hidden md:table-cell">{row.llmCalls}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1.5">
-                      <span className="font-medium tabular-nums">{row.cost}</span>
-                      {row.trend === "up" && <TrendingUp className="h-3 w-3 text-emerald-500" />}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </DataCard>
-
-        <DataCard title="Cost Drivers" description="Monthly spend breakdown">
-          <div className="space-y-4">
-            {costDrivers.map((driver) => (
-              <div key={driver.name} className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">{driver.name}</span>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="secondary" className="tabular-nums">
-                      {driver.percentage}%
-                    </Badge>
-                    <span className="text-sm font-semibold tabular-nums w-16 text-right">{driver.amount}</span>
-                  </div>
-                </div>
-                <div className="h-2 bg-muted rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all ${driver.color}`}
-                    style={{ width: `${driver.percentage}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="mt-6 pt-4 border-t">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Total Monthly Cost</span>
-              <span className="font-semibold text-lg">$9,400</span>
-            </div>
-          </div>
-        </DataCard>
+      <div className="rounded-2xl border border-dashed border-slate-200/90 bg-white p-10 text-center shadow-card">
+        <Building2 className="mx-auto h-10 w-10 text-slate-400" />
+        <h2 className="mt-4 text-base font-semibold text-slate-900">No tenant context</h2>
+        <p className="mx-auto mt-2 max-w-md text-sm text-slate-600">
+          Use the tenant switcher in the header to view a fund workspace, or open Tenants to manage organizations.
+        </p>
+        <Link href="/select-tenant" className="mt-6 inline-block">
+          <Button>Select tenant</Button>
+        </Link>
       </div>
     </div>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Assessor Overview
-// ─────────────────────────────────────────────────────────────────────────────
-
-function AssessorOverview() {
-  const queue = [
-    { id: "P-095", name: "Senior Wellness Center", tenant: "Elder Care Co", priority: "High", status: "In Progress", due: "Mar 3, 2026", daysLeft: 1 },
-    { id: "P-098", name: "Green Energy Project", tenant: "Eco Solutions", priority: "High", status: "Not Started", due: "Mar 5, 2026", daysLeft: 3 },
-    { id: "P-096", name: "Food Security Network", tenant: "Hunger Relief", priority: "Medium", status: "In Progress", due: "Mar 4, 2026", daysLeft: 2 },
-    { id: "P-099", name: "Digital Literacy Program", tenant: "Tech For All", priority: "Medium", status: "Not Started", due: "Mar 6, 2026", daysLeft: 4 },
-    { id: "P-100", name: "Arts & Culture Festival", tenant: "Creative Minds", priority: "Low", status: "Not Started", due: "Mar 10, 2026", daysLeft: 8 },
-  ];
-
-  type PriorityKey = "High" | "Medium" | "Low";
-  type StatusKey = "In Progress" | "Not Started";
-
-  const priorityVariants: Record<PriorityKey, "error" | "warning" | "muted"> = {
-    High: "error",
-    Medium: "warning",
-    Low: "muted",
-  };
-
-  const statusVariants: Record<StatusKey, "info" | "muted"> = {
-    "In Progress": "info",
-    "Not Started": "muted",
-  };
+function PipelineBar({ pipeline }: { pipeline: DashboardSummaryPayload["pipeline"] }) {
+  const stages = [
+    { key: "upload", label: "Upload", count: pipeline.upload },
+    { key: "extract", label: "Extract", count: pipeline.extract },
+    { key: "validate", label: "Validate", count: pipeline.validate },
+    { key: "evaluate", label: "Evaluate", count: pipeline.evaluate },
+    { key: "report", label: "Report", count: pipeline.report },
+    { key: "complete", label: "Complete", count: pipeline.complete },
+  ] as const;
+  const total = stages.reduce((a, s) => a + s.count, 0);
+  const denom = total > 0 ? total : 1;
 
   return (
-    <div className="space-y-6">
-      <PageHeader title="My Dashboard" subtitle="Your assessment queue and progress" />
+    <div className="space-y-4">
+      <p className="text-sm text-slate-500">
+        Distribution across workflow stages (derived from documents, extraction, validation, evaluation, and reports).
+        Total in pipeline: <span className="font-medium text-slate-800">{total}</span>
+      </p>
+      <div className="flex h-3 overflow-hidden rounded-full bg-slate-100">
+        {stages.map((s) => (
+          <div
+            key={s.key}
+            className="h-full bg-primary transition-all first:rounded-l-full last:rounded-r-full"
+            style={{ width: `${(s.count / denom) * 100}%`, minWidth: s.count > 0 ? "4px" : "0" }}
+            title={`${s.label}: ${s.count}`}
+          />
+        ))}
+      </div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        {stages.map((s) => (
+          <div
+            key={s.key}
+            className="rounded-xl border border-slate-200/85 bg-white p-4 text-center shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-hover"
+          >
+            <p className="text-2xl font-bold tabular-nums text-slate-900">{s.count}</p>
+            <p className="mt-1 text-xs font-medium uppercase tracking-wide text-slate-500">{s.label}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Assigned" value="5" description="Total in queue" icon={Target} />
-        <StatCard title="Due Soon" value="2" description="Within 48 hours" trend="neutral" icon={AlertTriangle} />
-        <StatCard title="Completed (Week)" value="8" description="+2 from last week" trend="up" icon={CheckCircle} />
-        <StatCard title="Avg Turnaround" value="1.8 days" description="-0.4 days improved" trend="up" icon={Clock} />
+function severityIcon(sev: "error" | "warning" | "info"): LucideIcon {
+  if (sev === "error") return AlertCircle;
+  if (sev === "warning") return FileWarning;
+  return AlertCircle;
+}
+
+function NeedsAttentionList({
+  items,
+  viewAllHref,
+}: {
+  items: DashboardSummaryPayload["needsAttention"];
+  viewAllHref: string;
+}) {
+  if (items.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/40 py-12 text-center">
+        <Inbox className="mx-auto h-8 w-8 text-slate-400" />
+        <p className="mt-3 text-sm font-medium text-slate-800">Nothing needs attention</p>
+        <p className="mt-1 text-xs text-slate-500">Missing documents, stalled reviews, and validation issues will appear here.</p>
+        <Link href="/dashboard/proposals" className="mt-4 inline-block">
+          <Button size="sm" variant="outline">
+            View proposals
+          </Button>
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <ul className="space-y-2">
+        {items.map((item) => {
+          const Icon = severityIcon(item.severity);
+          return (
+            <li key={item.id}>
+              <Link
+                href={item.href}
+                className={cn(
+                  "flex items-start gap-3 rounded-xl border border-slate-200/80 border-l-4 bg-white px-3 py-3 shadow-soft transition-all duration-200",
+                  "hover:bg-slate-50/95 hover:shadow-card",
+                  item.severity === "error" && "border-l-red-600/70",
+                  item.severity === "warning" && "border-l-amber-500/75",
+                  item.severity === "info" && "border-l-blue-600/55"
+                )}
+              >
+                <Icon
+                  className={
+                    item.severity === "error"
+                      ? "mt-0.5 h-4 w-4 shrink-0 text-red-600"
+                      : item.severity === "warning"
+                        ? "mt-0.5 h-4 w-4 shrink-0 text-amber-700"
+                        : "mt-0.5 h-4 w-4 shrink-0 text-blue-700/80"
+                  }
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold leading-snug tracking-tight text-slate-900">{item.title}</p>
+                  <p className="mt-0.5 text-xs text-slate-500">{item.detail}</p>
+                </div>
+                <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-slate-300" />
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+      <div className="mt-4 border-t border-slate-100 pt-4">
+        <Link href={viewAllHref}>
+          <Button variant="outline" size="sm">
+            View all
+            <ArrowRight className="ml-2 h-3.5 w-3.5" />
+          </Button>
+        </Link>
+      </div>
+    </>
+  );
+}
+
+function RecentList({ items }: { items: DashboardSummaryPayload["recentActivity"] }) {
+  if (items.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/40 py-12 text-center">
+        <Activity className="mx-auto h-8 w-8 text-slate-400" />
+        <p className="mt-3 text-sm font-medium text-slate-800">No recent activity</p>
+        <p className="mt-1 text-xs text-slate-500">Events will appear as your team works through proposals.</p>
+        <Link href="/dashboard/proposals" className="mt-4 inline-block">
+          <Button variant="outline" size="sm">
+            Browse proposals
+          </Button>
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <ul className="divide-y divide-slate-100">
+      {items.map((row) => (
+        <li key={row.id}>
+          <Link
+            href={row.href}
+            className="-mx-2 flex items-start justify-between gap-4 rounded-lg px-2 py-3 transition-colors hover:bg-slate-50/80"
+          >
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-slate-900">{row.label}</p>
+              <p className="mt-0.5 truncate text-xs text-slate-500">{row.detail}</p>
+            </div>
+            <span className="shrink-0 text-xs tabular-nums text-slate-400">{row.timeLabel}</span>
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function QuickActions() {
+  const actions = [
+    {
+      href: "/dashboard/proposals/new",
+      label: "New Proposal",
+      icon: Plus,
+      variant: "default" as const,
+    },
+    {
+      href: "/dashboard/proposals",
+      label: "Upload Documents",
+      icon: Upload,
+      variant: "outline" as const,
+    },
+    {
+      href: "/dashboard/prompts",
+      label: "Run Validation",
+      icon: ShieldCheck,
+      variant: "outline" as const,
+    },
+    {
+      href: "/dashboard/reports",
+      label: "Generate Report",
+      icon: FileBarChart,
+      variant: "outline" as const,
+    },
+  ];
+
+  return (
+    <div className="grid w-full grid-cols-2 gap-2.5 md:grid-cols-4 md:gap-3">
+      {actions.map(({ href, label, icon: Icon, variant }) => (
+        <Link
+          key={label}
+          href={href}
+          className={cn(
+            buttonVariants({ variant }),
+            "h-14 w-full shrink-0 flex-row items-center justify-start gap-3 rounded-xl px-3 text-left text-sm font-medium sm:px-3.5",
+            variant === "default" &&
+              "shadow-card transition-all duration-200 hover:-translate-y-px hover:shadow-card-hover",
+            variant === "outline" &&
+              "border-slate-300/95 bg-white text-slate-900 shadow-soft transition-all duration-200 hover:-translate-y-px hover:border-slate-400 hover:bg-slate-50/80 hover:shadow-card-hover"
+          )}
+        >
+          <span
+            className={cn(
+              "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
+              variant === "default"
+                ? "bg-primary/10 text-primary"
+                : "bg-slate-200/95 text-slate-800"
+            )}
+          >
+            <Icon className="h-4 w-4" />
+          </span>
+          <span className="min-w-0 flex-1 leading-snug">{label}</span>
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+function TenantDashboard({
+  user,
+  snapshot,
+  variant,
+}: {
+  user: DashboardHomeProps["user"];
+  snapshot: DashboardSummaryPayload;
+  variant: "standard" | "assessor" | "saas";
+}) {
+  const role = user.role || "assessor";
+  const queueHref = role === "assessor" ? "/dashboard/queue" : "/dashboard/queues";
+
+  return (
+    <div className="space-y-12 lg:space-y-14">
+      <PageHeader
+        className="mb-0"
+        title="Dashboard"
+        subtitle={
+          variant === "assessor"
+            ? "Your queue, pipeline, and recent activity"
+            : "Investment proposal pipeline and workspace activity"
+        }
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Link href="/dashboard/fund-manager">
+              <Button variant="outline" size="sm">
+                Fund Manager
+                <ArrowRight className="ml-2 h-3.5 w-3.5" />
+              </Button>
+            </Link>
+            <Link href="/dashboard/proposals">
+              <Button size="sm" variant={variant === "standard" ? "default" : "outline"}>
+                {role === "viewer" ? "Browse proposals" : "Proposals"}
+                <ExternalLink className="ml-2 h-3.5 w-3.5" />
+              </Button>
+            </Link>
+          </div>
+        }
+      />
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          title="Total proposals"
+          value={snapshot.kpis.totalProposals}
+          description="In this workspace"
+          icon={FileText}
+          iconTint="blue"
+        />
+        <StatCard
+          title="In review"
+          value={snapshot.kpis.inReview}
+          description="With IC / reviewers"
+          icon={Clock}
+          iconTint="blue"
+        />
+        <StatCard
+          title="Pending validation"
+          value={snapshot.kpis.pendingValidation}
+          description="Assigned pre-IC"
+          icon={AlertTriangle}
+          iconTint="amber"
+        />
+        <StatCard
+          title="Approved this month"
+          value={snapshot.kpis.approvedThisMonth}
+          description="Closed approvals"
+          icon={CheckCircle}
+          iconTint="emerald"
+        />
       </div>
 
       <DataCard
-        title="My Queue"
+        title="Quick actions"
+        description="Primary workflow shortcuts"
+        accent="blue"
+        headerClassName="py-3 sm:py-3.5"
+        descriptionClassName="mt-0.5"
+        noPadding
+        bodyClassName="flex flex-col justify-start pt-1 pb-4 px-4 sm:px-5 sm:pb-5"
+      >
+        <QuickActions />
+      </DataCard>
+
+      <DataCard
+        title="Needs attention"
+        titleClassName="font-bold tracking-tight"
+        description={`Missing documents, stalled reviews, and risk signals · Missing docs ${snapshot.attentionCounts.missingDocuments}, stalled ${snapshot.attentionCounts.stuckInReview}, validation ${snapshot.attentionCounts.validationFailures}, eval gaps ${snapshot.attentionCounts.evaluationGaps}`}
+        accent="rose"
+      >
+        <NeedsAttentionList items={snapshot.needsAttention} viewAllHref={queueHref} />
+      </DataCard>
+
+      <DataCard title="My work" description="Assignments, your review queue, and completions today" accent="indigo">
+        <div className="grid gap-4 sm:grid-cols-3">
+          {[
+            {
+              label: "Assigned proposals",
+              value: snapshot.myWork.assignedProposals,
+              hint: "Assigned to you in this workspace",
+              icon: Target,
+            },
+            {
+              label: "Pending reviews",
+              value: snapshot.myWork.pendingReviews,
+              hint: "In review stage",
+              icon: FileText,
+            },
+            {
+              label: "Completed today",
+              value: snapshot.myWork.completedToday,
+              hint: "Approved / declined / deferred",
+              icon: CheckCircle,
+            },
+          ].map((w) => (
+            <div
+              key={w.label}
+              className="rounded-xl border border-slate-200/70 bg-white px-4 py-5 text-center shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-hover"
+            >
+              <w.icon className="mx-auto mb-2 h-5 w-5 text-primary" />
+              <p className="text-3xl font-bold tabular-nums text-slate-900">{w.value}</p>
+              <p className="mt-1 text-sm font-medium text-slate-800">{w.label}</p>
+              <p className="mt-1 text-xs text-slate-500">{w.hint}</p>
+            </div>
+          ))}
+        </div>
+      </DataCard>
+
+      <DataCard title="Pipeline overview" description="Upload → Extract → Validate → Evaluate → Report" accent="blue">
+        <PipelineBar pipeline={snapshot.pipeline} />
+      </DataCard>
+
+      <DataCard
+        title="Recent activity"
+        description="From the audit trail for this tenant"
         actions={
-          <Link href="/dashboard/queue">
-            <Button variant="outline" size="sm">
-              View All
-              <ArrowRight className="h-4 w-4 ml-2" />
+          <Link href="/dashboard/audit">
+            <Button variant="ghost" size="sm">
+              Audit log
+              <ArrowRight className="ml-1 h-3.5 w-3.5" />
             </Button>
           </Link>
         }
       >
-        <div className="space-y-2">
-          {queue.map((item) => (
-            <QueueItem
-              key={item.id}
-              item={item}
-              priorityVariants={priorityVariants}
-              statusVariants={statusVariants}
-            />
-          ))}
-        </div>
+        <RecentList items={snapshot.recentActivity} />
       </DataCard>
-    </div>
-  );
-}
 
-interface QueueItemProps {
-  item: {
-    id: string;
-    name: string;
-    tenant: string;
-    priority: string;
-    status: string;
-    due: string;
-    daysLeft: number;
-  };
-  priorityVariants: Record<string, "error" | "warning" | "muted">;
-  statusVariants: Record<string, "info" | "muted">;
-}
-
-function QueueItem({ item, priorityVariants, statusVariants }: QueueItemProps) {
-  return (
-    <div className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
-      <div className="flex items-center gap-4 flex-1 min-w-0">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="font-mono text-xs text-muted-foreground">{item.id}</span>
-            <span className="font-medium truncate">{item.name}</span>
+      {variant === "saas" && (
+        <DataCard title="Platform shortcuts" description="Cross-tenant administration" accent="blue">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              { label: "Tenants", href: "/dashboard/tenants", icon: Building2 },
+              { label: "Subscriptions", href: "/dashboard/subscriptions", icon: Users },
+              { label: "Costs", href: "/dashboard/costs", icon: DollarSign },
+              { label: "LLM usage", href: "/dashboard/costs", icon: Cpu },
+            ].map(({ label, href, icon: Icon }) => (
+              <Link
+                key={label}
+                href={href}
+                className="flex items-center gap-3 rounded-xl border border-slate-200/90 bg-white px-4 py-3 text-sm font-medium text-slate-800 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-md"
+              >
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <Icon className="h-4 w-4" />
+                </span>
+                {label}
+                <ChevronRight className="ml-auto h-4 w-4 text-slate-400" />
+              </Link>
+            ))}
           </div>
-          <p className="text-sm text-muted-foreground">{item.tenant}</p>
-        </div>
-        <div className="hidden sm:flex items-center gap-2">
-          <StatusBadge variant={priorityVariants[item.priority]}>{item.priority}</StatusBadge>
-          <StatusBadge variant={statusVariants[item.status]}>{item.status}</StatusBadge>
-        </div>
-        <div className="hidden md:block text-right">
-          <p className="text-sm font-medium">{item.due}</p>
-          <p className={`text-xs ${item.daysLeft <= 2 ? "text-red-500" : "text-muted-foreground"}`}>
-            {item.daysLeft} day{item.daysLeft !== 1 ? "s" : ""} left
-          </p>
-        </div>
-      </div>
-      <Link href={`/dashboard/proposals/${item.id}`}>
-        <Button variant="outline" size="sm" className="ml-4">
-          Open
-        </Button>
-      </Link>
+        </DataCard>
+      )}
     </div>
   );
 }

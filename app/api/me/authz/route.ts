@@ -3,23 +3,8 @@ import { requireSession, jsonError } from "@/lib/authz";
 import { getPermissionsForRole } from "@/lib/rbac/permissions";
 import { getTenantEntitlements } from "@/lib/entitlements/demoEntitlements";
 import { getActiveTenantId } from "@/lib/tenantContext";
-
-interface TenantInfo {
-  id: string;
-  name: string;
-}
-
-const TENANT_DATA: Record<string, TenantInfo> = {
-  "tenant-001": { id: "tenant-001", name: "Acme Foundation" },
-  "tenant-002": { id: "tenant-002", name: "Beta Grants Inc" },
-  "tenant-003": { id: "tenant-003", name: "Community Trust" },
-};
-
-const ALLOWED_TENANTS: Record<string, string[]> = {
-  saas_admin: ["tenant-001", "tenant-002", "tenant-003"],
-  tenant_admin: ["tenant-001", "tenant-002"],
-  assessor: ["tenant-001"],
-};
+import { listTenants } from "@/lib/db/tenants";
+import { findUserById } from "@/lib/db/users";
 
 export async function GET() {
   try {
@@ -31,10 +16,18 @@ export async function GET() {
       ? getTenantEntitlements(activeTenantId)
       : null;
 
-    const allowedTenantIds = ALLOWED_TENANTS[session.role] || [];
-    const allowedTenants = allowedTenantIds
-      .map((id) => TENANT_DATA[id])
-      .filter(Boolean);
+    let allowedTenants: { id: string; name: string }[] = [];
+    if (session.role === "saas_admin") {
+      const tenants = await listTenants();
+      allowedTenants = tenants.map((t) => ({ id: t.id, name: t.name }));
+    } else if (session.tenantId) {
+      const user = await findUserById(session.userId ?? "");
+      if (user?.tenantId) {
+        const tenants = await listTenants();
+        const t = tenants.find((x) => x.id === user.tenantId);
+        if (t) allowedTenants = [{ id: t.id, name: t.name }];
+      }
+    }
 
     return NextResponse.json({
       ok: true,

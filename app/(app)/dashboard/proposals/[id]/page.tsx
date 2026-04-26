@@ -1,6 +1,10 @@
 import { requirePermissionWithTenantContext, PROPOSAL_READ } from "@/lib/authz";
 import { getProposalForUser } from "@/lib/mock/proposals";
 import { getProposalQueueId, getQueueById } from "@/lib/mock/queues";
+import {
+  getProposalDetailPg,
+  mockProposalToDetailRow,
+} from "@/lib/proposals/proposalDetail";
 import ProposalDetailClient from "./ProposalDetailClient";
 
 interface PageProps {
@@ -9,32 +13,70 @@ interface PageProps {
 
 export default async function ProposalDetailPage({ params }: PageProps) {
   const { user, tenantId } = await requirePermissionWithTenantContext(PROPOSAL_READ);
-  const { id } = await params;
+  const { id: proposalId } = await params;
+
+  const fromDb = await getProposalDetailPg(tenantId, proposalId);
+
+  if (fromDb) {
+    const canAssign = ["tenant_admin", "saas_admin", "fund_manager"].includes(user.role);
+    const canManageDocuments =
+      !["viewer"].includes(user.role) &&
+      ["tenant_admin", "saas_admin", "assessor", "fund_manager"].includes(user.role);
+    const isReadOnly = user.role === "viewer";
+
+    return (
+      <ProposalDetailClient
+        proposal={fromDb}
+        canAssign={canAssign}
+        canManageDocuments={canManageDocuments}
+        isReadOnly={isReadOnly}
+        currentAssignment={{
+          assignedToUserId: null,
+          assignedToName: null,
+          assignedQueueId: null,
+          assignedQueueName: null,
+        }}
+      />
+    );
+  }
 
   const result = getProposalForUser({
     tenantId,
     userId: user.userId,
     role: user.role,
-    proposalId: id,
+    proposalId,
   });
 
   if (result.accessDenied) {
-    return <ProposalDetailClient proposal={null} canAssign={false} isReadOnly={false} error="Not authorized to view this proposal" />;
+    return (
+      <ProposalDetailClient
+        proposal={null}
+        canAssign={false}
+        isReadOnly={false}
+        error="Not authorized to view this proposal"
+      />
+    );
   }
 
   if (!result.proposal) {
-    return <ProposalDetailClient proposal={null} canAssign={false} isReadOnly={false} error="Proposal not found" />;
+    return (
+      <ProposalDetailClient
+        proposal={null}
+        canAssign={false}
+        isReadOnly={false}
+        error="Proposal not found"
+      />
+    );
   }
 
-  // Check if user can assign (tenant_admin, saas_admin, or fund_manager) - not viewer
+  const proposal = mockProposalToDetailRow(result.proposal);
+
   const canAssign = ["tenant_admin", "saas_admin", "fund_manager"].includes(user.role);
-
-  // Check if user can manage documents (upload/delete) - not viewer
-  const canManageDocuments = !["viewer"].includes(user.role) && ["tenant_admin", "saas_admin", "assessor", "fund_manager"].includes(user.role);
-
+  const canManageDocuments =
+    !["viewer"].includes(user.role) &&
+    ["tenant_admin", "saas_admin", "assessor", "fund_manager"].includes(user.role);
   const isReadOnly = user.role === "viewer";
 
-  // Get current queue assignment if any
   const queueId = getProposalQueueId(result.proposal.id);
   const queue = queueId ? getQueueById(queueId) : null;
   const currentAssignment = {
@@ -46,7 +88,7 @@ export default async function ProposalDetailPage({ params }: PageProps) {
 
   return (
     <ProposalDetailClient
-      proposal={result.proposal}
+      proposal={proposal}
       canAssign={canAssign}
       canManageDocuments={canManageDocuments}
       isReadOnly={isReadOnly}

@@ -8,9 +8,10 @@ import {
   jsonError,
   AuthzHttpError,
 } from "@/lib/authz";
-import { getProposalById } from "@/lib/mock/proposals";
+import { getProposalRecordPg } from "@/lib/proposals/proposalDetail";
 import { generateInvestmentReport } from "@/lib/evaluation/reportEngine";
 import { logAudit } from "@/lib/audit";
+import { persistProposalReport } from "@/lib/pg/persistProposalRecords";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -20,33 +21,27 @@ export async function POST(request: NextRequest, context: RouteContext) {
   const { id: proposalId } = await context.params;
 
   try {
-    console.log("[generate-report] Report generation started for proposal", proposalId);
-
     const user = await requireSession();
     const tenantId = requireTenant(user);
 
-    const proposal = getProposalById(proposalId);
-    if (!proposal) {
+    const record = await getProposalRecordPg(tenantId, proposalId);
+    if (!record) {
       throw new AuthzHttpError(404, "Proposal not found");
     }
-
-    if (proposal.tenantId !== tenantId) {
-      throw new AuthzHttpError(403, "Proposal not in your tenant");
-    }
-
-    console.log("[generate-report] Proposal loaded:", proposalId);
 
     const report = await generateInvestmentReport({
       tenantId,
       proposalId,
-      proposalName: proposal.name,
-      applicant: proposal.applicant,
-      fundName: proposal.fund,
-      fundId: proposal.fundId ?? null,
-      amount: proposal.amount,
+      proposalName: record.proposal_name,
+      applicant: record.applicant_name,
+      fundName: record.fund_name ?? "",
+      fundId: record.fund_id || null,
+      amount: record.requested_amount ?? 0,
       generatedByUserId: user.userId || "",
       generatedByEmail: user.email || "",
     });
+
+    await persistProposalReport(tenantId, proposalId, report, null);
 
     logAudit({
       action: "proposal.report_generated",
@@ -61,8 +56,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
         decision: report.decision,
       },
     });
-
-    console.log("[generate-report] Report saved:", report.reportId);
 
     return NextResponse.json({
       ok: true,
@@ -90,9 +83,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return jsonError(error);
     }
     const message = error instanceof Error ? error.message : "Failed to generate report";
-    return NextResponse.json(
-      { ok: false, error: message },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 }

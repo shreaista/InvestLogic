@@ -8,7 +8,7 @@ import {
   jsonError,
   AuthzHttpError,
 } from "@/lib/authz";
-import { getProposalById } from "@/lib/mock/proposals";
+import { getProposalRecordPg } from "@/lib/proposals/proposalDetail";
 import { getLatestReport } from "@/lib/evaluation/reportEngine";
 
 interface RouteContext {
@@ -22,12 +22,12 @@ export async function GET(request: NextRequest, context: RouteContext) {
     const user = await requireSession();
     const tenantId = requireTenant(user);
 
-    const proposal = getProposalById(proposalId);
-    if (!proposal) {
+    const record = await getProposalRecordPg(tenantId, proposalId);
+    if (!record) {
       throw new AuthzHttpError(404, "Proposal not found");
     }
 
-    if (proposal.tenantId !== tenantId) {
+    if (record.tenant_id !== tenantId) {
       throw new AuthzHttpError(403, "Proposal not in your tenant");
     }
 

@@ -173,7 +173,7 @@ function ProviderCard({ provider }: { provider: Provider }) {
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-primary/5">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
               <Cpu className="h-5 w-5 text-primary" />
             </div>
             <div>
@@ -204,10 +204,10 @@ function ProviderCard({ provider }: { provider: Provider }) {
             <div
               className={`h-full rounded-full transition-all ${
                 provider.usage > 80
-                  ? "bg-gradient-to-r from-red-500 to-red-400"
+                  ? "bg-destructive"
                   : provider.usage > 50
-                  ? "bg-gradient-to-r from-amber-500 to-amber-400"
-                  : "bg-gradient-to-r from-emerald-500 to-emerald-400"
+                  ? "bg-warning"
+                  : "bg-success"
               }`}
               style={{ width: `${provider.usage}%` }}
             />

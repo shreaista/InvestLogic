@@ -7,6 +7,8 @@ import "server-only";
 // Falls back to Node.js extraction for DOCX only. PDF fallback is disabled
 // because pdf-parse can use browser-only APIs (DOMMatrix) in some bundling contexts.
 
+import fs from "fs/promises";
+import path from "path";
 import { downloadBlob, getDefaultContainer } from "@/lib/storage/azureBlob";
 import { extractDocxText } from "@/lib/textExtractor";
 import { extractDocumentViaPython } from "./pythonExtractionClient";
@@ -80,6 +82,63 @@ function extractExtension(fileName: string): string {
   return fileName.substring(lastDot).toLowerCase();
 }
 
+async function extractTextFromBuffer(
+  buffer: Buffer,
+  fileType: string,
+  displayName: string,
+  extension: string,
+  warnings: string[]
+): Promise<ExtractionResult> {
+  const isDocx =
+    fileType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    extension === ".docx";
+
+  try {
+    let text: string;
+
+    if (SUPPORTED_TEXT_TYPES.includes(fileType)) {
+      text = buffer.toString("utf-8");
+    } else if (isDocx) {
+      console.log(`[extractDocumentFromBlob] Buffer extraction for DOCX ${displayName}`);
+      try {
+        text = await extractDocxText(buffer);
+        console.log(`[extractDocumentFromBlob] Buffer extraction succeeded for ${displayName} (${text.length} chars)`);
+      } catch (docxError) {
+        const docxErrorMessage = docxError instanceof Error ? docxError.message : "Unknown DOCX error";
+        console.error(`[extractDocumentFromBlob] Buffer extraction failed for ${displayName}:`, docxError);
+        warnings.push(`Extraction failed for ${displayName}: ${docxErrorMessage}`);
+        return {
+          text: "",
+          warnings,
+          charactersProcessed: 0,
+        };
+      }
+    } else {
+      warnings.push(`No extraction handler for file type ${fileType} (${displayName})`);
+      return {
+        text: "",
+        warnings,
+        charactersProcessed: 0,
+      };
+    }
+
+    return {
+      text,
+      warnings,
+      charactersProcessed: text.length,
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error("[extractDocumentFromBlob] Buffer extraction error:", error);
+    warnings.push(`Extraction failed for ${displayName}: ${errorMessage}`);
+    return {
+      text: "",
+      warnings,
+      charactersProcessed: 0,
+    };
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Document Extraction
 // ─────────────────────────────────────────────────────────────────────────────
@@ -141,6 +200,38 @@ export async function extractDocumentFromBlob(
     };
   }
 
+  // Local uploads stored under public/ (see POST /api/proposals/[id]/documents)
+  let preloadedBuffer: Buffer | null = null;
+  if (blobPath.startsWith("/uploads/")) {
+    const rel = blobPath.replace(/^\//, "");
+    const absPath = path.join(process.cwd(), "public", rel);
+    try {
+      preloadedBuffer = await fs.readFile(absPath);
+      console.log(
+        `[extractDocumentFromBlob] Loaded local public file ${absPath} (${preloadedBuffer.length} bytes)`
+      );
+    } catch (err) {
+      console.warn(`[extractDocumentFromBlob] Could not read local file ${absPath}:`, err);
+    }
+  }
+
+  const isPdf = fileType === "application/pdf" || extension === ".pdf";
+  if (preloadedBuffer) {
+    if (isPdf) {
+      console.log(
+        `[extractDocumentFromBlob] Local PDF ${displayName}: Python/Azure path required for PDF text (local buffer not sent to extractor)`
+      );
+      return {
+        text: "",
+        warnings: [
+          "PDF text extraction could not be completed. Use the Python extractor service (pdfplumber) for PDF extraction.",
+        ],
+        charactersProcessed: 0,
+      };
+    }
+    return extractTextFromBuffer(preloadedBuffer, fileType, displayName, extension, warnings);
+  }
+
   // Validate file type is supported (check both MIME type and extension)
   if (!isFileTypeSupported(fileType) && !PYTHON_FIRST_EXTENSIONS.includes(extension)) {
     return {
@@ -152,7 +243,6 @@ export async function extractDocumentFromBlob(
 
   const container = getDefaultContainer();
   const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING || "";
-  const isPdf = fileType === "application/pdf" || extension === ".pdf";
 
   // Try Python extractor first for PDF and DOCX files (check both MIME type and extension)
   const usePythonFirst = shouldUsePythonExtraction(fileType, fileName || displayName);

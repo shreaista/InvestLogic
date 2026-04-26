@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getMyAuthz, isReadOnlyRole } from "@/lib/authz";
-import { getNavItemsForRole, filterNavByPermissions } from "@/lib/nav";
+import { getSidebarForRole, filterSidebarNav } from "@/lib/nav";
 import { AppShell } from "@/components/app-shell";
 import { getSessionSafe } from "@/lib/session";
 import { getActiveTenantId, isTenantRequired } from "@/lib/tenantContext";
@@ -27,8 +27,7 @@ export default async function DashboardLayout({
 
   const { user } = await getSessionSafe();
 
-  const navItems = getNavItemsForRole(role, activeTenantId);
-  const filteredNavItems = filterNavByPermissions(navItems, permissions);
+  const sidebarNav = filterSidebarNav(getSidebarForRole(role, activeTenantId), permissions, role);
 
   const userInfo = {
     name: user?.name ?? "",
@@ -41,8 +40,7 @@ export default async function DashboardLayout({
     <ToastProvider>
       <AppShell
         user={userInfo}
-        navItems={filteredNavItems}
-        permissions={permissions}
+        sidebarNav={sidebarNav}
         activeTenantId={activeTenantId}
       >
         {children}

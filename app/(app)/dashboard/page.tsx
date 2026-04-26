@@ -1,6 +1,7 @@
 import { getSessionSafe } from "@/lib/session";
 import { redirect } from "next/navigation";
-import DashboardHome from "./DashboardHome";
+import { getActiveTenantId } from "@/lib/tenantContext";
+import DashboardSummaryClient from "./DashboardSummaryClient";
 
 export default async function DashboardPage() {
   const session = await getSessionSafe();
@@ -9,5 +10,17 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  return <DashboardHome user={session.user} />;
+  const tenantId = await getActiveTenantId();
+
+  return (
+    <DashboardSummaryClient
+      user={{
+        id: session.user.userId,
+        email: session.user.email,
+        name: session.user.name,
+        role: session.user.role,
+      }}
+      tenantId={tenantId}
+    />
+  );
 }

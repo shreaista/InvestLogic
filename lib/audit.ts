@@ -1,5 +1,7 @@
 import "server-only";
 
+import { persistAuditLogToPostgres } from "@/lib/audit/pgAudit";
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Audit Log Types
 // ─────────────────────────────────────────────────────────────────────────────
@@ -51,6 +53,10 @@ export function logAudit(params: LogAuditParams): void {
   };
 
   auditLog.push(entry);
+
+  if (params.tenantId) {
+    void persistAuditLogToPostgres(params).catch(() => {});
+  }
 
   console.log("[audit]", entry.action, {
     resourceType: entry.resourceType,

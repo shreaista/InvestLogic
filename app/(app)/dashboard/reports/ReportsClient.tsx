@@ -79,7 +79,7 @@ function SaaSAdminReports({ productionMode }: { productionMode?: boolean }) {
         subtitle="Download and manage platform reports"
         actions={
           !productionMode && (
-            <Button className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-sm">
+            <Button>
               <Calendar className="h-4 w-4 mr-2" />
               Schedule Report
             </Button>
@@ -136,7 +136,7 @@ function TenantReports({ productionMode }: { productionMode?: boolean }) {
         subtitle="Download organization reports"
         actions={
           !productionMode && (
-            <Button className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-sm">
+            <Button>
               <Calendar className="h-4 w-4 mr-2" />
               Schedule Report
             </Button>

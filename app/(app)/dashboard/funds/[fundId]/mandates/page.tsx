@@ -1,38 +1,20 @@
 import { requireRoleWithTenantContext } from "@/lib/authz";
-import { getFundById, getLinkedMandates } from "@/lib/db/funds";
-import { listFundMandates, getFundMandateById } from "@/lib/mock/fundMandates";
+import { getFundByIdPg } from "@/lib/funds/listFundsPg";
 import { redirect } from "next/navigation";
-import FundMandatesClient from "./FundMandatesClient";
+import FundMandatesPageClient from "./FundMandatesPageClient";
 
 interface PageProps {
   params: Promise<{ fundId: string }>;
 }
 
 export default async function FundMandatesPage({ params }: PageProps) {
-  const { tenantId } = await requireRoleWithTenantContext(["tenant_admin", "saas_admin"]);
+  const { tenantId } = await requireRoleWithTenantContext(["tenant_admin", "saas_admin", "fund_manager", "assessor", "viewer"]);
   const { fundId } = await params;
 
-  const fund = await getFundById(tenantId, fundId);
+  const fund = await getFundByIdPg(tenantId, fundId);
   if (!fund) {
     redirect("/dashboard/funds");
   }
 
-  const linkedMandateIds = await getLinkedMandates(tenantId, fundId);
-  const allMandates = listFundMandates(tenantId);
-
-  const linkedMandates = linkedMandateIds
-    .map((id) => getFundMandateById(tenantId, id))
-    .filter(Boolean);
-
-  const availableMandates = allMandates.filter(
-    (m) => !linkedMandateIds.includes(m.id)
-  );
-
-  return (
-    <FundMandatesClient
-      fund={fund}
-      linkedMandates={linkedMandates}
-      availableMandates={availableMandates}
-    />
-  );
+  return <FundMandatesPageClient fund={fund} />;
 }

@@ -7,6 +7,12 @@ interface DataCardProps {
   className?: string;
   actions?: React.ReactNode;
   noPadding?: boolean;
+  /** Merged onto the body wrapper (below header); use with `className` `flex flex-col h-full` for fill layouts */
+  bodyClassName?: string;
+  /** Merged onto the title row (below accent border); e.g. tighter padding for compact cards */
+  headerClassName?: string;
+  /** Merged onto the description line under the title */
+  descriptionClassName?: string;
   titleClassName?: string;
   titleBadges?: React.ReactNode;
   /** Subtle colored top border: amber, blue, violet, indigo, emerald, rose */
@@ -14,12 +20,12 @@ interface DataCardProps {
 }
 
 const accentBorder: Record<NonNullable<DataCardProps["accent"]>, string> = {
-  amber: "border-t-2 border-t-amber-400/60",
-  blue: "border-t-2 border-t-blue-400/60",
-  violet: "border-t-2 border-t-violet-400/60",
-  indigo: "border-t-2 border-t-indigo-400/60",
-  emerald: "border-t-2 border-t-emerald-400/60",
-  rose: "border-t-2 border-t-rose-400/60",
+  amber: "border-t-2 border-t-warning/70",
+  blue: "border-t-2 border-t-primary/70",
+  violet: "border-t-2 border-t-primary/55",
+  indigo: "border-t-2 border-t-primary/70",
+  emerald: "border-t-2 border-t-success/70",
+  rose: "border-t-2 border-t-destructive/55",
 };
 
 export function DataCard({
@@ -29,33 +35,57 @@ export function DataCard({
   className,
   actions,
   noPadding = false,
+  bodyClassName,
+  headerClassName,
+  descriptionClassName,
   titleClassName,
   titleBadges,
   accent,
 }: DataCardProps) {
   return (
     <div
-    className={cn(
-      "rounded-2xl border border-slate-200 bg-card overflow-hidden shadow-sm transition-all duration-200 hover:shadow-md",
-      accent && accentBorder[accent],
-      className
-    )}
-  >
-      <div className="flex items-center justify-between gap-4 px-5 py-4 sm:px-6 sm:py-5 border-b border-slate-200/80 bg-muted/30">
+      className={cn(
+        "overflow-hidden rounded-[14px] border border-slate-200/80 bg-white shadow-card transition-shadow duration-200 ease-out hover:shadow-card-hover dark:border-border/80 dark:bg-card",
+        accent && accentBorder[accent],
+        className
+      )}
+    >
+      <div
+        className={cn(
+          "flex items-center justify-between gap-4 border-b border-slate-100 bg-white px-5 py-[18px] sm:px-6 sm:py-5 dark:border-border dark:bg-card",
+          headerClassName
+        )}
+      >
         <div className="min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h3 className={cn("text-lg font-semibold text-slate-900 truncate", titleClassName)}>{title}</h3>
+          <div className="flex flex-wrap items-center gap-2">
+            <h3
+              className={cn(
+                "truncate text-[1.3125rem] font-semibold tracking-tight text-foreground sm:text-[1.375rem]",
+                titleClassName
+              )}
+            >
+              {title}
+            </h3>
             {titleBadges}
           </div>
           {description && (
-            <p className="text-sm text-slate-500 mt-0.5 truncate font-normal">
+            <p
+              className={cn(
+                "mt-1 line-clamp-2 text-sm font-normal leading-relaxed text-muted-foreground",
+                descriptionClassName
+              )}
+            >
               {description}
             </p>
           )}
         </div>
         {actions && <div className="shrink-0">{actions}</div>}
       </div>
-      <div className={cn({ "p-5 sm:p-6": !noPadding })}>{children}</div>
+      <div
+        className={cn(!noPadding && "p-5 sm:p-6", bodyClassName)}
+      >
+        {children}
+      </div>
     </div>
   );
 }

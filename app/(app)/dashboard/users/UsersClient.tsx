@@ -236,7 +236,7 @@ export default function UsersClient() {
                 <TableRow key={member.id} className="group">
                   <TableCell>
                     <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-primary/20 to-primary/10 text-primary text-xs font-medium">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-medium">
                         {member.avatar}
                       </div>
                       <div className="min-w-0">

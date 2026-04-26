@@ -46,6 +46,13 @@ const config: Config = {
           border: "hsl(var(--sidebar-border))",
           accent: "hsl(var(--sidebar-accent))",
         },
+        /* Deep navy app chrome (#0B1020) */
+        nav: {
+          DEFAULT: "hsl(var(--sidebar-nav))",
+          border: "hsl(var(--sidebar-nav-border))",
+          foreground: "hsl(var(--sidebar-nav-text))",
+          muted: "hsl(var(--sidebar-nav-muted))",
+        },
         success: "hsl(var(--success))",
         warning: "hsl(var(--warning))",
         risk: "hsl(var(--risk))",

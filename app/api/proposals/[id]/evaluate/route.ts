@@ -13,12 +13,11 @@ import {
   REPORT_GENERATE,
   type Proposal,
 } from "@/lib/authz";
-import { getProposalForUser } from "@/lib/mock/proposals";
+import { getProposalRecordPg } from "@/lib/proposals/proposalDetail";
 import { runEvaluation } from "@/lib/evaluation/proposalEvaluator";
 import { checkRateLimit } from "@/lib/evaluation/rateLimiter";
 import { logAudit } from "@/lib/audit";
-
-console.log("[evaluate.route] loaded");
+import { persistProposalEvaluation } from "@/lib/pg/persistProposalRecords";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -26,69 +25,53 @@ interface RouteContext {
 
 export async function POST(request: NextRequest, context: RouteContext) {
   const { id } = await context.params;
-  console.log("[evaluate.route] starting POST for proposal", id);
 
   try {
     const ctx = await getAuthzContext();
 
     if (!ctx.user) {
-      return NextResponse.json(
-        { ok: false, error: "Authentication required" },
-        { status: 401 }
-      );
+      return NextResponse.json({ ok: false, error: "Authentication required" }, { status: 401 });
     }
 
-    // Tenant isolation
     const tenantId = ctx.tenantId ?? ctx.user.id;
     if (!tenantId) {
       throw new AuthzHttpError(400, "Tenant context required");
     }
     requireTenantAccess(ctx, tenantId);
 
-    // Permission check: llm:use OR report:generate
     requireAnyPermission(ctx, [LLM_USE, REPORT_GENERATE]);
 
-    // Check rate limit before processing
     const rateLimitResult = checkRateLimit(tenantId);
     if (!rateLimitResult.allowed) {
       throw new AuthzHttpError(429, rateLimitResult.message || "Rate limit exceeded");
     }
 
-    // Validate proposal access
-    const proposalResult = getProposalForUser({
-      tenantId,
-      userId: ctx.user.id || "",
-      role: ctx.role,
-      proposalId: id,
-    });
-
-    if (proposalResult.accessDenied) {
-      throw new AuthzHttpError(403, "You do not have access to this proposal");
-    }
-
-    if (!proposalResult.proposal) {
+    const record = await getProposalRecordPg(tenantId, id);
+    if (!record) {
       throw new AuthzHttpError(404, "Proposal not found");
     }
 
-    const proposal = proposalResult.proposal as Proposal & { fund: string; fundId?: string };
+    const proposal: Proposal = {
+      id: record.proposal_id,
+      tenantId: record.tenant_id,
+    };
 
-    // If role is assessor, must also pass canAccessProposal
     if (ctx.role === "assessor" && !canAccessProposal(ctx, proposal)) {
       throw new AuthzHttpError(403, "Access denied to this proposal");
     }
 
-    // Run evaluation with LLM (uses fundId for mandate fetch when available)
     const result = await runEvaluation({
       tenantId,
       proposalId: id,
-      fundName: proposal.fund,
-      fundId: proposal.fundId || null,
+      fundName: record.fund_name ?? record.proposal_name,
+      fundId: record.fund_id || null,
       mandateKey: null,
       evaluatedByUserId: ctx.user.id || "",
       evaluatedByEmail: ctx.user.email || "",
     });
 
-    // Audit log for evaluation run
+    await persistProposalEvaluation(tenantId, id, result.report, result.blobPath);
+
     logAudit({
       action: "proposal.evaluate",
       actorUserId: ctx.user.id || "",
@@ -122,9 +105,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
     if (error instanceof AuthzHttpError) {
       return jsonError(error);
     }
-    return NextResponse.json(
-      { ok: false, error: "Failed to run evaluation" },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok: false, error: "Failed to run evaluation" }, { status: 500 });
   }
 }

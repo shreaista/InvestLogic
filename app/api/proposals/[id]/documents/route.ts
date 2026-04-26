@@ -1,7 +1,12 @@
 // API routes for Proposal Document management
 // POST - Upload document (tenant_admin, saas_admin, assessor)
 // GET - List documents (all roles with proposal access)
+//
+// URL: POST /api/proposals/:proposalId/documents — folder is [id]; route param is `id` (the proposal UUID).
 
+import { randomUUID } from "crypto";
+import fs from "fs";
+import path from "path";
 import { NextRequest, NextResponse } from "next/server";
 import {
   getAuthzContext,
@@ -16,27 +21,50 @@ import {
 import { requireActiveTenantId } from "@/lib/tenantContext";
 import { getProposalForUser } from "@/lib/mock/proposals";
 import {
-  uploadProposalDocument,
-  listProposalDocuments,
-  getStorageStatus,
   ALLOWED_CONTENT_TYPES,
   ALLOWED_EXTENSIONS,
   MAX_FILE_SIZE,
   UNSUPPORTED_FILE_ERROR,
 } from "@/lib/storage/proposalDocuments";
 import { logAudit } from "@/lib/audit";
+import { getPostgresPool } from "@/lib/postgres";
+
+const UPLOADED_BY_FALLBACK = "user_admin_001";
 
 interface RouteContext {
-  params: Promise<{ id: string }>;
+  params: Promise<{ id: string }>; // proposal id from URL
 }
 
-// Helper to get proposal with tenant/access validation
+// Helper to get proposal with tenant/access validation (PostgreSQL proposals or mock store)
 async function getProposalWithAccess(
   tenantId: string,
   userId: string,
   role: string,
   proposalId: string
 ): Promise<Proposal & { name?: string; fund?: string }> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  try {
+    const pg = await client.query(
+      `SELECT proposal_id, tenant_id, proposal_name
+       FROM proposals
+       WHERE proposal_id = $1 AND tenant_id = $2
+       LIMIT 1`,
+      [proposalId, tenantId]
+    );
+    if (pg.rows.length > 0) {
+      const row = pg.rows[0];
+      return {
+        id: row.proposal_id,
+        tenantId: row.tenant_id,
+        name: row.proposal_name,
+        fund: "",
+      } as Proposal & { name?: string; fund?: string };
+    }
+  } finally {
+    client.release();
+  }
+
   const result = getProposalForUser({
     tenantId,
     userId,
@@ -81,14 +109,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
     // Also require upload:create permission
     requirePermission(ctx, UPLOAD_CREATE);
 
-    const { id } = await context.params;
+    const { id: proposalId } = await context.params;
 
-    // Get proposal and validate access
     await getProposalWithAccess(
       tenantId,
       ctx.user.id || "",
       ctx.role,
-      id
+      proposalId
     );
 
     const formData = await request.formData();
@@ -113,49 +140,60 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    const result = await uploadProposalDocument({
-      tenantId,
-      proposalId: id,
-      filename: file.name,
-      contentType: file.type,
-      buffer,
-      uploadedByUserId: ctx.user.id || "",
-      uploadedByEmail: ctx.user.email || "",
-    });
+    const fileName = path.basename(file.name?.trim() || "file");
+    const proposalDocumentId = randomUUID();
+    const savedFileName = `${proposalDocumentId}_${fileName}`;
+    const uploadDir = path.join(process.cwd(), "public/uploads/proposals");
+    const filePath = path.join(uploadDir, savedFileName);
 
-    // Audit log for document upload
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    fs.writeFileSync(filePath, buffer);
+
+    const storageUrl = `/uploads/proposals/${savedFileName}`;
+    const fileType = file.type?.trim() || "application/octet-stream";
+
+    const pool = getPostgresPool();
+    const dbClient = await pool.connect();
+    try {
+      await dbClient.query(
+        `INSERT INTO proposal_documents (
+          proposal_document_id, tenant_id, proposal_id, file_name, file_type, file_size_bytes,
+          storage_url, uploaded_by, uploaded_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
+        [
+          proposalDocumentId,
+          tenantId,
+          proposalId,
+          fileName,
+          fileType,
+          file.size,
+          storageUrl,
+          ctx.user.id || UPLOADED_BY_FALLBACK,
+        ]
+      );
+    } finally {
+      dbClient.release();
+    }
+
     logAudit({
       action: "proposal_document.upload",
       actorUserId: ctx.user.id || "",
       actorEmail: ctx.user.email,
       tenantId,
       resourceType: "proposal_document",
-      resourceId: id,
+      resourceId: proposalId,
       details: {
-        blobPath: result.blobPath,
-        filename: result.filename,
-        size: result.size,
-        contentType: file.type,
+        proposalDocumentId,
+        filename: fileName,
+        size: file.size,
+        contentType: fileType,
+        storageUrl,
       },
     });
 
-    const storage = getStorageStatus();
-
-    return NextResponse.json({
-      ok: true,
-      data: {
-        blobPath: result.blobPath,
-        filename: result.filename,
-        size: result.size,
-        uploadedAt: result.uploadedAt,
-        uploadedBy: result.uploadedBy,
-        storage: {
-          mode: storage.mode,
-          configured: storage.configured,
-          message: storage.configured ? undefined : storage.message,
-        },
-      },
-    });
+    return NextResponse.json({ ok: true });
   } catch (error) {
     return jsonError(error);
   }
@@ -197,20 +235,65 @@ export async function GET(request: NextRequest, context: RouteContext) {
       throw new AuthzHttpError(403, "Access denied to this proposal");
     }
 
-    const result = await listProposalDocuments(tenantId, id);
-    const storage = getStorageStatus();
+    const pool = getPostgresPool();
+    const dbClient = await pool.connect();
+    let rows: Record<string, unknown>[] = [];
+    try {
+      const q = await dbClient.query(
+        `SELECT
+          proposal_document_id,
+          proposal_id,
+          file_name,
+          file_type,
+          file_size_bytes,
+          storage_url,
+          uploaded_at
+         FROM proposal_documents
+         WHERE proposal_id = $1 AND tenant_id = $2
+         ORDER BY uploaded_at DESC`,
+        [id, tenantId]
+      );
+      rows = q.rows;
+    } finally {
+      dbClient.release();
+    }
+
+    const flat = rows.map((row) => {
+      const uploadedRaw = row.uploaded_at;
+      const uploadedAt =
+        uploadedRaw instanceof Date
+          ? uploadedRaw.toISOString()
+          : typeof uploadedRaw === "string"
+            ? uploadedRaw
+            : new Date().toISOString();
+      const name = String(row.file_name ?? "");
+      const storageUrl = String(row.storage_url ?? "");
+      const size = Number(row.file_size_bytes ?? 0);
+      const contentType = String(row.file_type ?? "application/octet-stream");
+
+      return {
+        proposal_document_id: String(row.proposal_document_id ?? ""),
+        proposal_id: String(row.proposal_id ?? ""),
+        file_name: name,
+        file_type: contentType,
+        file_size_bytes: size,
+        storage_url: storageUrl,
+        uploaded_at: uploadedAt,
+        blobPath: storageUrl,
+        filename: name,
+        size,
+        contentType,
+        uploadedAt,
+        timestamp: uploadedAt,
+      };
+    });
 
     return NextResponse.json({
       ok: true,
       data: {
-        grouped: result.grouped,
-        flat: result.flat,
-        count: result.flat.length,
-        storage: {
-          mode: storage.mode,
-          configured: storage.configured,
-          message: storage.configured ? undefined : storage.message,
-        },
+        grouped: [],
+        flat,
+        count: flat.length,
       },
     });
   } catch (error) {

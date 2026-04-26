@@ -79,9 +79,15 @@ function PromptEditor({
 
 interface PromptsClientProps {
   funds: Fund[];
+  pageTitle?: string;
+  pageSubtitle?: string;
 }
 
-export default function PromptsClient({ funds }: PromptsClientProps) {
+export default function PromptsClient({
+  funds,
+  pageTitle = "Prompt Management",
+  pageSubtitle = "Edit and version AI prompts for evaluation and validation",
+}: PromptsClientProps) {
   const [globalPrompts, setGlobalPrompts] = useState<GlobalPrompt[]>([]);
   const [fundPrompts, setFundPrompts] = useState<FundPrompt[]>([]);
   const [loading, setLoading] = useState(true);
@@ -225,10 +231,7 @@ export default function PromptsClient({ funds }: PromptsClientProps) {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Prompt Management"
-        subtitle="Edit and version AI prompts for evaluation and validation"
-      />
+      <PageHeader title={pageTitle} subtitle={pageSubtitle} />
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-6">

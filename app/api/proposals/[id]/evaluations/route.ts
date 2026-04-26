@@ -13,7 +13,7 @@ import {
   REPORT_GENERATE,
   type Proposal,
 } from "@/lib/authz";
-import { getProposalForUser } from "@/lib/mock/proposals";
+import { getProposalRecordPg } from "@/lib/proposals/proposalDetail";
 import {
   listEvaluations,
   downloadEvaluation,
@@ -64,25 +64,16 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     const { id } = await context.params;
 
-    // Validate proposal access
-    const proposalResult = getProposalForUser({
-      tenantId,
-      userId: ctx.user.id || "",
-      role: ctx.role,
-      proposalId: id,
-    });
-
-    if (proposalResult.accessDenied) {
-      throw new AuthzHttpError(403, "You do not have access to this proposal");
-    }
-
-    if (!proposalResult.proposal) {
+    const record = await getProposalRecordPg(tenantId, id);
+    if (!record) {
       throw new AuthzHttpError(404, "Proposal not found");
     }
 
-    const proposal = proposalResult.proposal as Proposal;
+    const proposal: Proposal = {
+      id: record.proposal_id,
+      tenantId: record.tenant_id,
+    };
 
-    // If role is assessor, must also pass canAccessProposal
     if (ctx.role === "assessor" && !canAccessProposal(ctx, proposal)) {
       throw new AuthzHttpError(403, "Access denied to this proposal");
     }

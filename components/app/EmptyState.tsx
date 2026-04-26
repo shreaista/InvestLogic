@@ -40,12 +40,12 @@ export function EmptyState({
       {action && (
         action.href ? (
           <a href={action.href}>
-            <Button className="bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white shadow-sm" size="sm">
+            <Button size="sm">
               {action.label}
             </Button>
           </a>
         ) : (
-          <Button className="bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white shadow-sm" size="sm" onClick={action.onClick}>
+          <Button size="sm" onClick={action.onClick}>
             {action.label}
           </Button>
         )

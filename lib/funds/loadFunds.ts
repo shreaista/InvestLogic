@@ -1,11 +1,11 @@
 /**
- * Shared client-side fund loading - EXACT same logic as Funds page.
+ * Shared client-side fund loading.
  * Used by FundsClient and NewProposalClient so both show the same fund list.
  */
 
 import type { Fund } from "@/lib/types";
 
-export const FUNDS_API_URL = "/api/tenant/funds";
+export const FUNDS_API_URL = "/api/funds";
 
 export interface LoadFundsResult {
   ok: boolean;
@@ -13,35 +13,38 @@ export interface LoadFundsResult {
   error?: string;
 }
 
+function mapApiFundToFund(row: {
+  fund_id: string;
+  fund_name: string;
+  fund_code: string | null;
+  status: string;
+  created_at: string;
+}): Fund {
+  return {
+    id: String(row.fund_id),
+    tenantId: "tenant_ipa_001",
+    name: row.fund_name,
+    code: row.fund_code ?? undefined,
+    status: (row.status?.toLowerCase() === "inactive" ? "inactive" : "active") as "active" | "inactive",
+    createdAt: row.created_at ?? "",
+    updatedAt: row.created_at ?? "",
+  };
+}
+
 /**
- * Fetches funds from /api/tenant/funds with credentials.
- * Same endpoint, tenant scoping (via cookies), no transformation, no filtering.
- * Returns raw funds array exactly as Funds page does.
+ * Fetches funds from /api/funds (PostgreSQL).
  */
 export async function loadFunds(): Promise<LoadFundsResult> {
-  console.log("[loadFunds] Started, endpoint:", FUNDS_API_URL);
   try {
     const res = await fetch(FUNDS_API_URL, { credentials: "include" });
     const data = await res.json();
-    const rawFunds = data.data?.funds;
-    const rawCount = Array.isArray(rawFunds) ? rawFunds.length : 0;
 
-    console.log(
-      "[loadFunds] Raw response: status:",
-      res.status,
-      "body:",
-      JSON.stringify(data),
-      "raw funds count:",
-      rawCount
-    );
-
-    if (data.ok && Array.isArray(rawFunds)) {
-      console.log("[loadFunds] Normalized funds array:", rawFunds.length, "items:", rawFunds.map((f: Fund) => ({ id: f.id, name: f.name, code: f.code, status: f.status })));
-      return { ok: true, funds: rawFunds };
+    if (data.ok && Array.isArray(data.funds)) {
+      const funds = data.funds.map(mapApiFundToFund);
+      return { ok: true, funds };
     }
 
     const errMsg = data.error || "Failed to load funds";
-    console.error("[loadFunds] Failed:", res.status, errMsg);
     return { ok: false, error: errMsg };
   } catch (err) {
     console.error("[loadFunds] Network error:", err);

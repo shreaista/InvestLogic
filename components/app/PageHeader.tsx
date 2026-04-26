@@ -10,13 +10,15 @@ interface PageHeaderProps {
 export function PageHeader({ title, subtitle, actions, className }: PageHeaderProps) {
   return (
     <div className={cn(
-      "flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between mb-6",
+      "mb-8 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between",
       className
     )}>
-      <div className="space-y-1">
-        <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
+      <div className="space-y-2">
+        <h1 className="text-[1.6875rem] font-semibold leading-tight tracking-tight text-foreground sm:text-[1.75rem]">
+          {title}
+        </h1>
         {subtitle && (
-          <p className="text-sm text-gray-500 font-normal">{subtitle}</p>
+          <p className="text-sm font-normal leading-relaxed text-muted-foreground">{subtitle}</p>
         )}
       </div>
       {actions && (

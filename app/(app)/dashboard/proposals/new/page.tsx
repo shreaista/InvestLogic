@@ -7,7 +7,6 @@ export default async function NewProposalPage() {
   const { tenantId } = await requirePermissionWithTenantContext(PROPOSAL_CREATE);
 
   const funds: Fund[] = await listFunds(tenantId);
-  console.log("[NewProposal Page] SSR funds, tenantId:", tenantId, "count:", funds.length, "ids:", funds.map((f) => f.id));
 
   return <NewProposalClient initialFunds={funds} />;
 }

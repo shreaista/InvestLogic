@@ -17,10 +17,18 @@ interface StatCardProps {
 }
 
 const iconTintStyles: Record<NonNullable<StatCardProps["iconTint"]>, string> = {
-  amber: "bg-amber-100 text-amber-700",
-  blue: "bg-blue-100 text-blue-700",
-  emerald: "bg-emerald-100 text-emerald-700",
-  violet: "bg-violet-100 text-violet-700",
+  amber: "bg-amber-500/10 text-amber-800",
+  blue: "bg-primary/10 text-primary",
+  emerald: "bg-emerald-600/10 text-emerald-800",
+  violet: "bg-primary/10 text-primary",
+};
+
+/** Info / warning / success — muted, enterprise */
+const valueTintStyles: Record<NonNullable<StatCardProps["iconTint"]>, string> = {
+  blue: "text-primary",
+  amber: "text-amber-950/88",
+  emerald: "text-emerald-900/95",
+  violet: "text-primary",
 };
 
 export function StatCard({
@@ -40,16 +48,22 @@ export function StatCard({
   return (
     <div
       className={cn(
-        "group relative rounded-2xl border border-slate-200 bg-card p-5 sm:p-6 shadow-sm transition-all duration-200 hover:shadow-md",
+        "group relative rounded-2xl border border-slate-200/85 bg-white p-5 shadow-card transition-shadow duration-200 hover:shadow-card-hover dark:border-border dark:bg-card",
+        "sm:p-6",
         className
       )}
     >
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1.5 min-w-0 flex-1">
-          <p className="text-[13px] font-medium text-slate-500 truncate font-normal">
+          <p className="truncate text-[13px] font-medium text-muted-foreground">
             {title}
           </p>
-          <p className={cn("text-2xl font-semibold tracking-tight tabular-nums text-slate-900", valueClassName)}>
+          <p
+            className={cn(
+              "text-4xl font-bold tracking-tight tabular-nums",
+              valueClassName ?? (iconTint ? valueTintStyles[iconTint] : "text-foreground")
+            )}
+          >
             {value}
           </p>
           {description && (
@@ -57,15 +71,15 @@ export function StatCard({
               {trend && trend !== "neutral" && (
                 <TrendIcon
                   className={cn("h-3.5 w-3.5 shrink-0", {
-                    "text-emerald-600 dark:text-emerald-400": trend === "up",
-                    "text-red-500 dark:text-red-400": trend === "down",
+                    "text-success": trend === "up",
+                    "text-destructive": trend === "down",
                   })}
                 />
               )}
               <p
                 className={cn("text-xs truncate", {
-                  "text-emerald-600 dark:text-emerald-400": trend === "up",
-                  "text-red-500 dark:text-red-400": trend === "down",
+                  "text-success": trend === "up",
+                  "text-destructive": trend === "down",
                   "text-muted-foreground": trend === "neutral" || !trend,
                 })}
               >
@@ -78,7 +92,7 @@ export function StatCard({
           <div
             className={cn(
               "shrink-0 rounded-xl p-3 transition-colors",
-              iconClassName ?? (iconTint ? iconTintStyles[iconTint] : "bg-slate-100 text-slate-600 group-hover:bg-slate-200")
+              iconClassName ?? (iconTint ? iconTintStyles[iconTint] : "bg-primary/5 text-primary group-hover:bg-primary/10")
             )}
           >
             <Icon className="h-5 w-5" />

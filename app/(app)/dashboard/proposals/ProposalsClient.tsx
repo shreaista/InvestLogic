@@ -4,7 +4,7 @@ import { useState, useTransition, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { PageHero, StatCard, DataCard, StatusBadge, EmptyState } from "@/components/app";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -41,6 +41,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast";
+import { cn } from "@/lib/utils";
 import {
   Search,
   MoreHorizontal,
@@ -110,6 +111,8 @@ interface ProposalsClientProps {
   error?: string;
   role?: string;
   proposalCount?: number;
+  pageTitle?: string;
+  pageSubtitle?: string;
 }
 
 interface AssignProposalParams {
@@ -167,7 +170,14 @@ async function fetchQueues(): Promise<{ ok: boolean; data?: Queue[]; error?: str
   }
 }
 
-export default function ProposalsClient({ proposals, error, role, proposalCount }: ProposalsClientProps) {
+export default function ProposalsClient({
+  proposals,
+  error,
+  role,
+  proposalCount,
+  pageTitle = "Proposals",
+  pageSubtitle = "View and manage all funding proposals",
+}: ProposalsClientProps) {
   const router = useRouter();
   const { toast } = useToast();
   const [filter, setFilter] = useState<FilterKey>("all");
@@ -270,18 +280,28 @@ export default function ProposalsClient({ proposals, error, role, proposalCount 
     return matchesFilter && matchesQueueFilter && matchesSearch;
   });
 
+  const startOfMonth = new Date();
+  startOfMonth.setDate(1);
+  startOfMonth.setHours(0, 0, 0, 0);
+
   const counts = {
     all: proposals.length,
-    new: proposals.filter(p => p.status === "New").length,
-    assigned: proposals.filter(p => p.status === "Assigned").length,
-    inReview: proposals.filter(p => p.status === "In Review").length,
-    approved: proposals.filter(p => p.status === "Approved").length,
+    new: proposals.filter((p) => p.status === "New").length,
+    assigned: proposals.filter((p) => p.status === "Assigned").length,
+    inReview: proposals.filter((p) => p.status === "In Review").length,
+    approved: proposals.filter((p) => p.status === "Approved").length,
   };
+
+  const approvedMtd = proposals.filter((p) => {
+    if (p.status !== "Approved") return false;
+    const d = new Date(p.submittedAt);
+    return !Number.isNaN(d.getTime()) && d >= startOfMonth;
+  }).length;
 
   if (error) {
     return (
       <div className="space-y-6">
-        <PageHero variant="proposals" title="Proposals" subtitle="View and manage all funding proposals" />
+        <PageHero variant="proposals" title={pageTitle} subtitle={pageSubtitle} />
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>{error}</AlertDescription>
@@ -306,13 +326,13 @@ export default function ProposalsClient({ proposals, error, role, proposalCount 
 
       <PageHero
         variant="proposals"
-        title="Proposals"
-        subtitle="View and manage all funding proposals"
+        title={pageTitle}
+        subtitle={pageSubtitle}
         actions={
           <div className="flex items-center gap-2">
             {!isReadOnly && (
               <Link href="/dashboard/proposals/new">
-                <Button className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white shadow-sm">
+                <Button>
                   <Plus className="h-4 w-4 mr-2" />
                   New Proposal
                 </Button>
@@ -323,12 +343,12 @@ export default function ProposalsClient({ proposals, error, role, proposalCount 
               Export
             </Button>
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <Filter className="h-4 w-4 mr-2" />
-                  Filter
-                  <ChevronDown className="h-4 w-4 ml-2" />
-                </Button>
+              <DropdownMenuTrigger
+                className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+              >
+                <Filter className="h-4 w-4 mr-2" />
+                Filter
+                <ChevronDown className="h-4 w-4 ml-2" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuLabel>Filter by Fund</DropdownMenuLabel>
@@ -369,9 +389,13 @@ export default function ProposalsClient({ proposals, error, role, proposalCount 
         />
         <StatCard
           title="Approved (MTD)"
-          value={counts.approved}
-          description="+3 from last month"
-          trend="up"
+          value={approvedMtd}
+          description={
+            counts.approved > approvedMtd
+              ? `${counts.approved} total approved`
+              : "This month"
+          }
+          trend="neutral"
           icon={CheckCircle}
         />
       </div>
@@ -520,16 +544,15 @@ export default function ProposalsClient({ proposals, error, role, proposalCount 
                       )}
                     </TableCell>
                     <TableCell>
+                      <div onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
+                        <DropdownMenuTrigger
+                          className={cn(
+                            buttonVariants({ variant: "ghost", size: "icon" }),
+                            "h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                          )}
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem onClick={() => router.push(`/dashboard/proposals/${proposal.id}`)}>
@@ -574,6 +597,7 @@ export default function ProposalsClient({ proposals, error, role, proposalCount 
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );

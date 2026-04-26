@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/toast";
 import { StatCard, DataCard, StatusBadge } from "@/components/app";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -294,11 +294,10 @@ export default function FundsClient({ funds: initialFunds, fundMandatesEnabled, 
       setCreateFundError("Fund name is required");
       return;
     }
-    const payload = { name: newFund.name.trim(), code: newFund.code?.trim() || undefined };
-    const endpoint = `${typeof window !== "undefined" ? window.location.origin : ""}${FUNDS_API_URL}`;
-    console.log("[Funds] Create fund submit started");
-    console.log("[Funds] Create fund payload:", JSON.stringify(payload));
-    console.log("[Funds] Create fund API endpoint:", endpoint);
+    const payload = {
+      fund_name: newFund.name.trim(),
+      fund_code: newFund.code?.trim() || undefined,
+    };
     setIsSubmitting(true);
     try {
       const res = await fetch(FUNDS_API_URL, {
@@ -307,46 +306,28 @@ export default function FundsClient({ funds: initialFunds, fundMandatesEnabled, 
         credentials: "include",
         body: JSON.stringify(payload),
       });
-      console.log("[Funds] Create fund response status:", res.status, res.statusText);
-      let data: { ok?: boolean; data?: { fund?: Fund }; error?: string } = {};
-      try {
-        data = await res.json();
-        console.log("[Funds] Create fund response body:", JSON.stringify(data));
-      } catch (parseErr) {
-        console.error("[Funds] Failed to parse API response:", parseErr);
-        const errMsg = res.status >= 400 ? `Server error (${res.status})` : "Invalid response from server";
-        setCreateFundError(errMsg);
-        toast(errMsg || "Failed to create fund", "error");
-        setIsSubmitting(false);
-        return;
-      }
-      if (data.ok && data.data?.fund) {
-        const created = data.data.fund;
-        console.log("[Funds] Create fund success:", { id: created.id, name: created.name });
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      if (data.ok) {
         setIsCreateFundOpen(false);
         setNewFund({ name: "", code: "" });
         setCreateFundError(null);
         clientDataAuthoritativeRef.current = true;
-        setFunds((prev) => [...prev, created]);
         const listOk = await loadFunds();
         if (!listOk) {
-          console.warn("[Funds] Create succeeded but list reload failed; fund may already be in state");
+          toast("Fund created but list refresh failed", "error");
         } else {
-          console.log("[Funds] Funds list reload success");
+          toast("Fund created successfully");
         }
         startTransition(() => router.refresh());
-        toast("Fund created successfully");
       } else {
         const errMsg = data.error || "Failed to create fund";
-        console.error("[Funds] Create fund failure:", errMsg);
         setCreateFundError(errMsg);
         toast(errMsg, "error");
       }
     } catch (err) {
-      console.error("[Funds] Create fund network error:", err);
       const errMsg = err instanceof Error ? err.message : "Network error";
       setCreateFundError(errMsg);
-      toast(errMsg || "Failed to create fund", "error");
+      toast(errMsg, "error");
     }
     setIsSubmitting(false);
   };
@@ -785,17 +766,10 @@ export default function FundsClient({ funds: initialFunds, fundMandatesEnabled, 
           <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-slate-100 text-slate-500 mb-6">
             <Wallet className="h-7 w-7" />
           </div>
-          <h3 className="text-lg font-semibold text-slate-900 mb-1">No funds created yet</h3>
-          <p className="text-sm text-slate-500 max-w-sm mb-8">
-            Create your first investment program to begin.
+          <h3 className="text-lg font-semibold text-slate-900 mb-1">No funds found</h3>
+          <p className="text-sm text-slate-500 max-w-sm mt-2">
+            No funds exist for this tenant yet.
           </p>
-          <Button
-            className="bg-indigo-600 hover:bg-indigo-700 text-white"
-            onClick={() => setIsCreateFundOpen(true)}
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Create Fund
-          </Button>
         </div>
       ) : view === "grid" ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -833,10 +807,10 @@ export default function FundsClient({ funds: initialFunds, fundMandatesEnabled, 
                     </Button>
                   </Link>
                   <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm" className="h-8 px-2">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
+                    <DropdownMenuTrigger
+                      className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "h-8 px-2")}
+                    >
+                      <MoreHorizontal className="h-4 w-4" />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem onClick={() => router.push(`/dashboard/funds/${fund.id}/config`)}>
@@ -902,14 +876,13 @@ export default function FundsClient({ funds: initialFunds, fundMandatesEnabled, 
                   </TableCell>
                   <TableCell>
                     <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
+                      <DropdownMenuTrigger
+                        className={cn(
+                          buttonVariants({ variant: "ghost", size: "icon" }),
+                          "h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                        )}
+                      >
+                        <MoreHorizontal className="h-4 w-4" />
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => router.push(`/dashboard/funds/${fund.id}/config`)}>
@@ -1072,14 +1045,13 @@ export default function FundsClient({ funds: initialFunds, fundMandatesEnabled, 
                         </TableCell>
                         <TableCell>
                           <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                              >
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
+                            <DropdownMenuTrigger
+                              className={cn(
+                                buttonVariants({ variant: "ghost", size: "icon" }),
+                                "h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                              )}
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
                             </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem>

@@ -14,7 +14,7 @@ import {
   REPORT_GENERATE,
   type Proposal,
 } from "@/lib/authz";
-import { getProposalForUser } from "@/lib/mock/proposals";
+import { getProposalRecordPg } from "@/lib/proposals/proposalDetail";
 import {
   downloadEvaluation,
   listEvaluations,
@@ -56,30 +56,16 @@ export async function POST(request: NextRequest, context: RouteContext) {
     // Permission check: llm:use OR report:generate
     requireAnyPermission(ctx, [LLM_USE, REPORT_GENERATE]);
 
-    // Validate proposal access
-    const proposalResult = getProposalForUser({
-      tenantId,
-      userId: ctx.user.id || "",
-      role: ctx.role,
-      proposalId: id,
-    });
-
-    if (proposalResult.accessDenied) {
-      throw new AuthzHttpError(403, "You do not have access to this proposal");
-    }
-
-    if (!proposalResult.proposal) {
+    const record = await getProposalRecordPg(tenantId, id);
+    if (!record) {
       throw new AuthzHttpError(404, "Proposal not found");
     }
 
-    const proposal = proposalResult.proposal as Proposal & { 
-      fund: string;
-      applicant?: string;
-      name?: string;
-      amount?: number;
+    const proposal: Proposal = {
+      id: record.proposal_id,
+      tenantId: record.tenant_id,
     };
 
-    // If role is assessor, must also pass canAccessProposal
     if (ctx.role === "assessor" && !canAccessProposal(ctx, proposal)) {
       throw new AuthzHttpError(403, "Access denied to this proposal");
     }
@@ -101,10 +87,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
     // Prepare memo input
     const memoInput: MemoInput = {
       proposalId: id,
-      proposalName: proposal.name,
-      applicant: proposal.applicant,
-      fundName: proposal.fund,
-      amount: proposal.amount,
+      proposalName: record.proposal_name,
+      applicant: record.applicant_name,
+      fundName: record.fund_name ?? record.fund_id,
+      amount: record.requested_amount ?? 0,
       fitScore: evaluationReport.fitScore,
       proposalSummary: evaluationReport.proposalSummary,
       mandateSummary: evaluationReport.mandateSummary,
@@ -193,25 +179,16 @@ export async function GET(request: NextRequest, context: RouteContext) {
     }
     requireTenantAccess(ctx, tenantId);
 
-    // Validate proposal access
-    const proposalResult = getProposalForUser({
-      tenantId,
-      userId: ctx.user.id || "",
-      role: ctx.role,
-      proposalId: id,
-    });
-
-    if (proposalResult.accessDenied) {
-      throw new AuthzHttpError(403, "You do not have access to this proposal");
-    }
-
-    if (!proposalResult.proposal) {
+    const record = await getProposalRecordPg(tenantId, id);
+    if (!record) {
       throw new AuthzHttpError(404, "Proposal not found");
     }
 
-    const proposal = proposalResult.proposal as Proposal;
+    const proposal: Proposal = {
+      id: record.proposal_id,
+      tenantId: record.tenant_id,
+    };
 
-    // If role is assessor, must also pass canAccessProposal
     if (ctx.role === "assessor" && !canAccessProposal(ctx, proposal)) {
       throw new AuthzHttpError(403, "Access denied to this proposal");
     }

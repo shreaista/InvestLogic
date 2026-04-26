@@ -32,9 +32,9 @@ interface TopbarProps {
 
 const ROLE_LABELS: Record<string, string> = {
   saas_admin: "SaaS Admin",
-  tenant_admin: "Admin",
+  tenant_admin: "Tenant Admin",
   fund_manager: "Fund Manager",
-  assessor: "Analyst",
+  assessor: "Assessor",
   viewer: "Viewer",
 };
 
@@ -59,10 +59,10 @@ export function Topbar({ user, pageTitle, activeTenantId, onMenuClick }: TopbarP
     user.role === "viewer";
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 lg:px-6">
+    <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b border-ipa-shell-border bg-ipa-shell px-4 text-white backdrop-blur-sm lg:px-6">
       <button
         onClick={onMenuClick}
-        className="lg:hidden p-2 -ml-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+        className="lg:hidden -ml-2 rounded-lg p-2 text-ipa-shell-muted transition-colors hover:bg-white/[0.06] hover:text-white"
       >
         <Menu className="h-5 w-5" />
         <span className="sr-only">Toggle menu</span>
@@ -70,55 +70,62 @@ export function Topbar({ user, pageTitle, activeTenantId, onMenuClick }: TopbarP
 
       <div className="flex items-center gap-3">
         <div className="hidden lg:flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-            <Briefcase className="h-4 w-4 text-primary-foreground" />
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-ipa-primary">
+            <Briefcase className="h-4 w-4 text-white" />
           </div>
-          <span className="font-semibold">IPA</span>
+          <span className="font-semibold text-white">IPA</span>
         </div>
-        <span className="hidden sm:block text-border text-lg font-light">/</span>
-        <span className="hidden sm:block text-sm font-medium">{pageTitle}</span>
+        <span className="hidden sm:block text-lg font-light text-ipa-shell-muted">/</span>
+        <span className="hidden sm:block text-sm font-medium text-ipa-shell-item">{pageTitle}</span>
       </div>
 
       <div className="flex-1" />
 
       {showTenantSwitcher && (
-        <TenantSwitcher activeTenantId={activeTenantId} role={user.role} />
+        <TenantSwitcher activeTenantId={activeTenantId} role={user.role} darkHeader />
       )}
 
       <div className="hidden md:flex items-center">
-        <button className="flex items-center gap-2 h-9 px-3 rounded-lg border bg-muted/40 text-muted-foreground text-sm hover:bg-muted transition-colors min-w-[200px]">
-          <Search className="h-4 w-4" />
-          <span className="flex-1 text-left">Search...</span>
-          <kbd className="pointer-events-none hidden lg:inline-flex h-5 items-center gap-1 rounded border bg-background px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+        <button
+          type="button"
+          className="flex h-9 min-w-[200px] items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-ipa-shell-item transition-colors hover:border-white/15 hover:bg-white/10 hover:text-white"
+        >
+          <Search className="h-4 w-4 shrink-0 text-ipa-shell-muted" />
+          <span className="flex-1 text-left text-ipa-shell-muted">Search...</span>
+          <kbd className="pointer-events-none hidden lg:inline-flex h-5 items-center gap-1 rounded border border-white/10 bg-ipa-shell px-1.5 font-mono text-[10px] font-medium text-ipa-shell-muted">
             ⌘K
           </kbd>
         </button>
       </div>
 
-      <div className="flex items-center gap-2">
-        <button className="md:hidden p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          className="md:hidden rounded-lg p-2 text-ipa-shell-muted transition-colors hover:bg-white/[0.06] hover:text-white"
+        >
           <Search className="h-5 w-5" />
         </button>
 
-        <ThemeToggle />
+        <ThemeToggle className="text-ipa-shell-muted hover:bg-white/[0.06] hover:text-white" />
 
-        <div className="relative ml-2">
+        <div className="relative ml-1">
           <button
+            type="button"
             onClick={() => setUserMenuOpen(!userMenuOpen)}
-            className="flex items-center gap-2 p-1.5 pr-2 rounded-lg hover:bg-muted transition-colors"
+            className="flex items-center gap-2 rounded-lg p-1.5 pr-2 transition-colors hover:bg-white/[0.06]"
           >
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-ipa-primary/20 text-ipa-primary">
               <User className="h-4 w-4" />
             </div>
             <div className="hidden lg:block text-left">
-              <p className="text-sm font-medium leading-none">{user.name}</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">
+              <p className="text-sm font-medium leading-none text-white">{user.name}</p>
+              <p className="mt-0.5 text-[11px] text-ipa-shell-muted">
                 {formatRole(user.role)}
               </p>
             </div>
             <ChevronDown
               className={cn(
-                "hidden lg:block h-4 w-4 text-muted-foreground transition-transform",
+                "hidden lg:block h-4 w-4 text-ipa-shell-muted transition-transform",
                 userMenuOpen && "rotate-180"
               )}
             />
@@ -130,15 +137,15 @@ export function Topbar({ user, pageTitle, activeTenantId, onMenuClick }: TopbarP
                 className="fixed inset-0 z-40"
                 onClick={() => setUserMenuOpen(false)}
               />
-              <div className="absolute right-0 top-full mt-2 w-64 rounded-2xl border border-border/80 bg-card shadow-[var(--shadow-card-hover)] z-50 overflow-hidden">
-                <div className="p-4 border-b bg-muted/30">
+              <div className="absolute right-0 top-full z-50 mt-2 w-64 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg">
+                <div className="border-b border-slate-100 bg-slate-50/80 p-4">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-ipa-primary/10 text-ipa-primary">
                       <User className="h-5 w-5" />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{user.name}</p>
-                      <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-slate-900">{user.name}</p>
+                      <p className="truncate text-xs text-slate-500">{user.email}</p>
                     </div>
                   </div>
                   <Badge variant="secondary" className="mt-3">
@@ -147,13 +154,17 @@ export function Topbar({ user, pageTitle, activeTenantId, onMenuClick }: TopbarP
                 </div>
 
                 <div className="p-2">
-                  <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+                  >
                     <Settings className="h-4 w-4" />
                     Settings
                   </button>
                   <button
+                    type="button"
                     onClick={handleLogout}
-                    className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
+                    className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
                   >
                     <LogOut className="h-4 w-4" />
                     Sign out
