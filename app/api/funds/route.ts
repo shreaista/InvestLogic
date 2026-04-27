@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { getPostgresPool } from "@/lib/postgres";
-import { requireSession, requireUserRole, jsonError } from "@/lib/authz";
+import { requireSession, requireUserRole } from "@/lib/authz";
 import { getActiveTenantId } from "@/lib/tenantContext";
 
 const FALLBACK_TENANT_ID = "tenant_ipa_001";
@@ -15,33 +15,54 @@ export async function GET() {
     const pool = getPostgresPool();
     const client = await pool.connect();
     try {
-      const result = await client.query(
-        `SELECT 
-          fund_id,
-          fund_name,
-          fund_code,
-          status,
-          geography,
-          stage_focus,
-          ticket_size_min,
-          ticket_size_max,
-          created_at
-         FROM funds 
-         WHERE tenant_id = $1 
-         ORDER BY fund_name`,
-        [await getActiveTenantId() ?? FALLBACK_TENANT_ID]
-      );
+      const tenantId = (await getActiveTenantId()) ?? FALLBACK_TENANT_ID;
+      let result;
+      try {
+        result = await client.query(
+          `SELECT
+            fund_id AS id,
+            fund_name AS name,
+            fund_code AS code,
+            tenant_id,
+            status,
+            created_at,
+            updated_at
+          FROM funds
+          WHERE tenant_id = $1
+          ORDER BY fund_name`,
+          [tenantId]
+        );
+      } catch (qErr) {
+        const msg = qErr instanceof Error ? qErr.message : String(qErr);
+        if (msg.toLowerCase().includes("updated_at") || msg.includes("42703")) {
+          console.warn("[Funds API] GET retry without updated_at", qErr);
+          result = await client.query(
+            `SELECT
+              fund_id AS id,
+              fund_name AS name,
+              fund_code AS code,
+              tenant_id,
+              status,
+              created_at,
+              created_at AS updated_at
+            FROM funds
+            WHERE tenant_id = $1
+            ORDER BY fund_name`,
+            [tenantId]
+          );
+        } else {
+          throw qErr;
+        }
+      }
 
       const funds = result.rows.map((row) => ({
-        fund_id: row.fund_id,
-        fund_name: row.fund_name,
-        fund_code: row.fund_code,
+        fund_id: row.id,
+        fund_name: row.name,
+        fund_code: row.code,
+        tenant_id: row.tenant_id,
         status: row.status,
-        geography: row.geography,
-        stage_focus: row.stage_focus,
-        ticket_size_min: row.ticket_size_min,
-        ticket_size_max: row.ticket_size_max,
         created_at: row.created_at,
+        updated_at: row.updated_at,
       }));
 
       return NextResponse.json({ ok: true, funds });
@@ -82,12 +103,26 @@ export async function POST(request: NextRequest) {
     const client = await pool.connect();
 
     try {
-      await client.query(
-        `INSERT INTO funds (
+      try {
+        await client.query(
+          `INSERT INTO funds (
           fund_id, tenant_id, fund_name, fund_code, status, created_at, updated_at
         ) VALUES ($1, $2, $3, $4, 'active', NOW(), NOW())`,
-        [fundId, tenantId, fundName, fundCode || null]
-      );
+          [fundId, tenantId, fundName, fundCode || null]
+        );
+      } catch (insErr) {
+        const msg = insErr instanceof Error ? insErr.message : String(insErr);
+        if (msg.toLowerCase().includes("updated_at") || msg.includes("42703")) {
+          await client.query(
+            `INSERT INTO funds (
+            fund_id, tenant_id, fund_name, fund_code, status, created_at
+          ) VALUES ($1, $2, $3, $4, 'active', NOW())`,
+            [fundId, tenantId, fundName, fundCode || null]
+          );
+        } else {
+          throw insErr;
+        }
+      }
 
       return NextResponse.json({ ok: true });
     } finally {
@@ -95,6 +130,9 @@ export async function POST(request: NextRequest) {
     }
   } catch (error) {
     console.error("[Funds API] POST Error:", error);
-    return jsonError(error);
+    return NextResponse.json(
+      { ok: false, error: "Could not create fund" },
+      { status: 500 }
+    );
   }
 }

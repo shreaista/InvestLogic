@@ -19,15 +19,18 @@ function mapApiFundToFund(row: {
   fund_code: string | null;
   status: string;
   created_at: string;
+  updated_at?: string;
+  tenant_id?: string;
 }): Fund {
+  const updated = row.updated_at ?? row.created_at ?? "";
   return {
     id: String(row.fund_id),
-    tenantId: "tenant_ipa_001",
+    tenantId: row.tenant_id && String(row.tenant_id) !== "" ? String(row.tenant_id) : "tenant_ipa_001",
     name: row.fund_name,
     code: row.fund_code ?? undefined,
     status: (row.status?.toLowerCase() === "inactive" ? "inactive" : "active") as "active" | "inactive",
     createdAt: row.created_at ?? "",
-    updatedAt: row.created_at ?? "",
+    updatedAt: updated,
   };
 }
 

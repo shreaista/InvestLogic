@@ -2,27 +2,93 @@ import "server-only";
 import { getPostgresPool } from "@/lib/postgres";
 import type { Fund } from "@/lib/types";
 
+/** Row shape from SELECT with AS aliases (never select bare id/name/code from funds). */
 export interface FundsRow {
-  fund_id: string;
-  fund_name: string;
-  fund_code: string | null;
+  id: string;
+  name: string;
+  code: string | null;
+  tenant_id: string;
   status: string;
-  geography: string | null;
-  stage_focus: string | null;
-  ticket_size_min: number | null;
-  ticket_size_max: number | null;
-  created_at: string;
+  created_at: Date | string;
+  updated_at: Date | string;
 }
 
-function rowToFund(row: FundsRow, tenantId: string): Fund {
+const LIST_SQL = `
+  SELECT
+    fund_id AS id,
+    fund_name AS name,
+    fund_code AS code,
+    tenant_id,
+    status,
+    created_at,
+    updated_at
+  FROM funds
+  WHERE tenant_id = $1
+  ORDER BY fund_name
+`;
+
+/** Fallback when updated_at is not present in DB. */
+const LIST_SQL_NO_UPDATED = `
+  SELECT
+    fund_id AS id,
+    fund_name AS name,
+    fund_code AS code,
+    tenant_id,
+    status,
+    created_at,
+    created_at AS updated_at
+  FROM funds
+  WHERE tenant_id = $1
+  ORDER BY fund_name
+`;
+
+const BY_ID_SQL = `
+  SELECT
+    fund_id AS id,
+    fund_name AS name,
+    fund_code AS code,
+    tenant_id,
+    status,
+    created_at,
+    updated_at
+  FROM funds
+  WHERE tenant_id = $1 AND fund_id = $2
+  LIMIT 1
+`;
+
+const BY_ID_SQL_NO_UPDATED = `
+  SELECT
+    fund_id AS id,
+    fund_name AS name,
+    fund_code AS code,
+    tenant_id,
+    status,
+    created_at,
+    created_at AS updated_at
+  FROM funds
+  WHERE tenant_id = $1 AND fund_id = $2
+  LIMIT 1
+`;
+
+function rowToFund(row: FundsRow): Fund {
+  const ca =
+    row.created_at instanceof Date
+      ? row.created_at.toISOString()
+      : String(row.created_at ?? "");
+  const ua =
+    row.updated_at instanceof Date
+      ? row.updated_at.toISOString()
+      : String(row.updated_at ?? ca);
   return {
-    id: String(row.fund_id),
-    tenantId,
-    name: row.fund_name,
-    code: row.fund_code ?? undefined,
-    status: (row.status?.toLowerCase() === "inactive" ? "inactive" : "active") as "active" | "inactive",
-    createdAt: row.created_at ?? "",
-    updatedAt: row.created_at ?? "",
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    name: String(row.name ?? ""),
+    code: row.code != null && String(row.code) !== "" ? String(row.code) : undefined,
+    status: (row.status?.toLowerCase() === "inactive" ? "inactive" : "active") as
+      | "active"
+      | "inactive",
+    createdAt: ca,
+    updatedAt: ua,
   };
 }
 
@@ -33,24 +99,20 @@ export async function getFundByIdPg(tenantId: string, fundId: string): Promise<F
   const pool = getPostgresPool();
   const client = await pool.connect();
   try {
-    const result = await client.query(
-      `SELECT 
-        fund_id,
-        fund_name,
-        fund_code,
-        status,
-        geography,
-        stage_focus,
-        ticket_size_min,
-        ticket_size_max,
-        created_at
-       FROM funds 
-       WHERE tenant_id = $1 AND fund_id = $2 
-       LIMIT 1`,
-      [tenantId, fundId]
-    );
-    const row = result.rows[0];
-    return row ? rowToFund(row as FundsRow, tenantId) : null;
+    let result;
+    try {
+      result = await client.query(BY_ID_SQL, [tenantId, fundId]);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.toLowerCase().includes("updated_at") || msg.includes("42703")) {
+        console.warn("[listFundsPg] getFundById retry without updated_at", e);
+        result = await client.query(BY_ID_SQL_NO_UPDATED, [tenantId, fundId]);
+      } else {
+        throw e;
+      }
+    }
+    const row = result.rows[0] as FundsRow | undefined;
+    return row ? rowToFund(row) : null;
   } catch (e) {
     console.warn("[listFundsPg] getFundByIdPg failed", e);
     return null;
@@ -66,23 +128,19 @@ export async function listFundsPg(tenantId: string): Promise<Fund[]> {
   const pool = getPostgresPool();
   const client = await pool.connect();
   try {
-    const result = await client.query(
-      `SELECT 
-        fund_id,
-        fund_name,
-        fund_code,
-        status,
-        geography,
-        stage_focus,
-        ticket_size_min,
-        ticket_size_max,
-        created_at
-       FROM funds 
-       WHERE tenant_id = $1 
-       ORDER BY fund_name`,
-      [tenantId]
-    );
-    return result.rows.map((row) => rowToFund(row as FundsRow, tenantId));
+    let result;
+    try {
+      result = await client.query(LIST_SQL, [tenantId]);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.toLowerCase().includes("updated_at") || msg.includes("42703")) {
+        console.warn("[listFundsPg] list retry without updated_at", e);
+        result = await client.query(LIST_SQL_NO_UPDATED, [tenantId]);
+      } else {
+        throw e;
+      }
+    }
+    return (result.rows as FundsRow[]).map((row) => rowToFund(row));
   } catch (e) {
     console.warn("[listFundsPg] listFundsPg failed", e);
     return [];

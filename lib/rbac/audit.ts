@@ -1,5 +1,6 @@
 import "server-only";
 
+import { persistAuditLogToPostgres } from "@/lib/audit/pgAudit";
 import type { AuthContext, ResourceType } from "./types";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -150,6 +151,18 @@ export async function logAudit(
     console.error("[AUDIT:CRITICAL]", JSON.stringify(entry));
   } else if (entry.severity === "warning") {
     console.warn("[AUDIT:WARNING]", JSON.stringify(entry));
+  }
+
+  if (entry.tenantId) {
+    void persistAuditLogToPostgres({
+      action: String(entry.action),
+      actorUserId: entry.actorId,
+      actorEmail: entry.actorEmail,
+      tenantId: entry.tenantId,
+      resourceType: String(entry.resourceType ?? "unknown"),
+      resourceId: String(entry.resourceId ?? ""),
+      details: entry.details,
+    }).catch((e) => console.error("[rbac/audit] postgres persist failed (non-fatal)", e));
   }
 
   return entry;

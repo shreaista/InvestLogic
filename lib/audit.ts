@@ -55,7 +55,9 @@ export function logAudit(params: LogAuditParams): void {
   auditLog.push(entry);
 
   if (params.tenantId) {
-    void persistAuditLogToPostgres(params).catch(() => {});
+    void persistAuditLogToPostgres(params).catch((e) =>
+      console.error("[audit] persist to postgres failed (non-fatal)", e)
+    );
   }
 
   console.log("[audit]", entry.action, {

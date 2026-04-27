@@ -3,19 +3,54 @@ import "server-only";
 import { randomUUID } from "crypto";
 import { getPostgresPool } from "@/lib/postgres";
 
-const AUDIT_TABLE = "audit_logs";
+/** Prefer audit_logs; fall back to legacy audit_log if present. */
+const AUDIT_TABLE_CANDIDATES = ["audit_logs", "audit_log"] as const;
 
+let resolvedAuditTable: string | null | undefined;
 let cachedAuditColumns: Set<string> | null = null;
+
+export async function getAuditTableName(): Promise<string | null> {
+  if (resolvedAuditTable !== undefined) return resolvedAuditTable;
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  try {
+    for (const name of AUDIT_TABLE_CANDIDATES) {
+      const r = await client.query(
+        `SELECT 1 FROM information_schema.tables
+         WHERE table_schema = 'public' AND table_name = $1
+         LIMIT 1`,
+        [name]
+      );
+      if (r.rows.length > 0) {
+        resolvedAuditTable = name;
+        return name;
+      }
+    }
+    resolvedAuditTable = null;
+    return null;
+  } catch (e) {
+    console.warn("[pgAudit] resolve audit table failed", e);
+    resolvedAuditTable = null;
+    return null;
+  } finally {
+    client.release();
+  }
+}
 
 async function loadAuditColumns(): Promise<Set<string>> {
   if (cachedAuditColumns) return cachedAuditColumns;
+  const tableName = await getAuditTableName();
+  if (!tableName) {
+    cachedAuditColumns = new Set();
+    return cachedAuditColumns;
+  }
   const pool = getPostgresPool();
   const client = await pool.connect();
   try {
     const r = await client.query(
       `SELECT column_name FROM information_schema.columns
        WHERE table_schema = 'public' AND table_name = $1`,
-      [AUDIT_TABLE]
+      [tableName]
     );
     cachedAuditColumns = new Set(
       (r.rows as { column_name: string }[]).map((x) => x.column_name)
@@ -46,6 +81,8 @@ export async function persistAuditLogToPostgres(params: {
   details?: Record<string, unknown>;
 }): Promise<void> {
   if (!params.tenantId) return;
+  const auditTable = await getAuditTableName();
+  if (!auditTable) return;
   const pool = getPostgresPool();
   const client = await pool.connect();
   try {
@@ -99,10 +136,10 @@ export async function persistAuditLogToPostgres(params: {
       placeholders.push(`NOW()`);
     }
 
-    const sql = `INSERT INTO "${AUDIT_TABLE}" (${insertCols.join(", ")}) VALUES (${placeholders.join(", ")})`;
+    const sql = `INSERT INTO "${auditTable}" (${insertCols.join(", ")}) VALUES (${placeholders.join(", ")})`;
     await client.query(sql, values);
   } catch (err) {
-    console.warn("[pgAudit] insert skipped or failed:", err);
+    console.error("[pgAudit] insert skipped or failed:", err);
   } finally {
     client.release();
   }
@@ -121,6 +158,9 @@ export async function queryAuditLogPg(
     created_at: string;
   }>
 > {
+  const auditTable = await getAuditTableName();
+  if (!auditTable) return [];
+
   const pool = getPostgresPool();
   const client = await pool.connect();
   try {
@@ -165,7 +205,7 @@ export async function queryAuditLogPg(
       createdCol && cols.has(createdCol) ? `"${createdCol}"` : idCol && cols.has(idCol) ? `"${idCol}"` : "1";
     const result = await client.query(
       `SELECT ${selectParts.join(", ")}
-       FROM "${AUDIT_TABLE}"
+       FROM "${auditTable}"
        WHERE "${tenantCol}" = $1
        ORDER BY ${orderBy} DESC
        LIMIT $2`,

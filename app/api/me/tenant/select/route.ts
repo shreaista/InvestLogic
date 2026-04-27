@@ -26,12 +26,19 @@ export async function POST(request: NextRequest) {
     }
 
     let allowedTenantIds: string[] = [];
-    if (user.role === "saas_admin") {
-      const tenants = await listTenants();
-      allowedTenantIds = tenants.map((t) => t.id);
-    } else {
-      const dbUser = await findUserById(user.userId ?? "");
-      if (dbUser?.tenantId) allowedTenantIds = [dbUser.tenantId];
+    try {
+      if (user.role === "saas_admin") {
+        const tenants = await listTenants();
+        allowedTenantIds = tenants.map((t) => t.id);
+      } else {
+        const dbUser = await findUserById(user.userId ?? "");
+        if (dbUser?.tenantId) allowedTenantIds = [dbUser.tenantId];
+      }
+    } catch (e) {
+      console.error("[me/tenant/select] tenant resolution failed, using session fallback if any", e);
+      if (user.role !== "saas_admin" && user.tenantId) {
+        allowedTenantIds = [user.tenantId];
+      }
     }
 
     if (!allowedTenantIds.includes(tenantId)) {
