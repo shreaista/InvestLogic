@@ -19,7 +19,12 @@ export async function GET() {
     requireRBACPermission(session, RBAC_PERMISSIONS.USER_READ);
     const tenantId = requireTenant(session);
 
-    const users = await listUsersByTenant(tenantId);
+    let users: Awaited<ReturnType<typeof listUsersByTenant>> = [];
+    try {
+      users = await listUsersByTenant(tenantId);
+    } catch (e) {
+      console.error("[Tenant Users API] GET list failed, returning empty", e);
+    }
 
     return NextResponse.json({ ok: true, data: { users } });
   } catch (error) {

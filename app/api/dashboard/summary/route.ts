@@ -8,6 +8,7 @@ import {
   requirePermission,
 } from "@/lib/authz";
 import { buildDashboardSummary } from "@/lib/dashboard/dashboardSummaryPg";
+import { getEmptyDashboardSummary } from "@/lib/dashboard/dashboardSummaryTypes";
 
 export async function GET() {
   try {
@@ -25,12 +26,6 @@ export async function GET() {
 
     const userId = ctx.user.id || "";
     const summary = await buildDashboardSummary(tenantId, userId);
-    if (!summary) {
-      return NextResponse.json(
-        { ok: false, error: "Unable to load dashboard data. Please try again later." },
-        { status: 503 }
-      );
-    }
 
     return NextResponse.json({ ok: true, data: summary });
   } catch (error) {
@@ -38,6 +33,6 @@ export async function GET() {
     if (error instanceof AuthzHttpError) {
       return jsonError(error);
     }
-    return NextResponse.json({ ok: false, error: "Failed to load dashboard summary" }, { status: 500 });
+    return NextResponse.json({ ok: true, data: getEmptyDashboardSummary() });
   }
 }

@@ -18,14 +18,24 @@ export async function GET() {
 
     let allowedTenants: { id: string; name: string }[] = [];
     if (session.role === "saas_admin") {
-      const tenants = await listTenants();
-      allowedTenants = tenants.map((t) => ({ id: t.id, name: t.name }));
-    } else if (session.tenantId) {
-      const user = await findUserById(session.userId ?? "");
-      if (user?.tenantId) {
+      try {
         const tenants = await listTenants();
-        const t = tenants.find((x) => x.id === user.tenantId);
-        if (t) allowedTenants = [{ id: t.id, name: t.name }];
+        allowedTenants = tenants.map((t) => ({ id: t.id, name: t.name }));
+      } catch (e) {
+        console.error("[me/authz] listTenants failed", e);
+        allowedTenants = [];
+      }
+    } else if (session.tenantId) {
+      try {
+        const user = await findUserById(session.userId ?? "");
+        if (user?.tenantId) {
+          const tenants = await listTenants();
+          const t = tenants.find((x) => x.id === user.tenantId);
+          if (t) allowedTenants = [{ id: t.id, name: t.name }];
+        }
+      } catch (e) {
+        console.error("[me/authz] allowedTenants for tenant user failed", e);
+        allowedTenants = [];
       }
     }
 

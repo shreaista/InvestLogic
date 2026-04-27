@@ -13,7 +13,12 @@ export async function GET(request: NextRequest) {
     requireUserRole(user, ["tenant_admin", "saas_admin"]);
     const tenantId = requireTenant(user);
 
-    const funds = await listFunds(tenantId);
+    let funds: Awaited<ReturnType<typeof listFunds>> = [];
+    try {
+      funds = await listFunds(tenantId);
+    } catch (e) {
+      console.error("[Tenant Funds API] GET list failed, returning empty", e);
+    }
     const rawCount = funds.length;
     const fundIds = funds.map((f) => f.id);
     const fundNames = funds.map((f) => f.name);

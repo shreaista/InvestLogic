@@ -3,18 +3,20 @@ import "server-only";
 import type { PoolClient } from "pg";
 import { getPostgresPool } from "@/lib/postgres";
 import { queryAuditLogPg } from "@/lib/audit/pgAudit";
-import type {
-  AttentionSeverity,
-  DashboardActivityItem,
-  DashboardAttentionItem,
-  DashboardSummaryPayload,
+import {
+  getEmptyDashboardSummary,
+  type AttentionSeverity,
+  type DashboardActivityItem,
+  type DashboardAttentionItem,
+  type DashboardSummaryPayload,
 } from "@/lib/dashboard/dashboardSummaryTypes";
 
-export type {
-  AttentionSeverity,
-  DashboardActivityItem,
-  DashboardAttentionItem,
-  DashboardSummaryPayload,
+export {
+  getEmptyDashboardSummary,
+  type AttentionSeverity,
+  type DashboardActivityItem,
+  type DashboardAttentionItem,
+  type DashboardSummaryPayload,
 } from "@/lib/dashboard/dashboardSummaryTypes";
 
 function normalizeStatus(raw: string): string {
@@ -74,6 +76,15 @@ async function tableExists(client: PoolClient, tableName: string): Promise<boole
   return r.rows.length > 0;
 }
 
+async function columnExists(client: PoolClient, tableName: string, columnName: string): Promise<boolean> {
+  const r = await client.query(
+    `SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public' AND table_name = $1 AND column_name = $2 LIMIT 1`,
+    [tableName, columnName]
+  );
+  return r.rows.length > 0;
+}
+
 function mapProposalRows(rows: Record<string, unknown>[]): ProposalRow[] {
   return rows.map((r) => ({
     proposal_id: String(r.proposal_id),
@@ -96,6 +107,8 @@ async function loadProposalRowsForDashboard(
   tenantId: string,
   hasExtractionsTable: boolean
 ): Promise<ProposalRow[]> {
+  const hasCreatedBy = await columnExists(client, "proposals", "created_by");
+  const createdBySelect = hasCreatedBy ? "p.created_by" : "NULL::text";
   const extractSelect = hasExtractionsTable
     ? `(SELECT pde.has_extracted FROM proposal_document_extractions pde
         WHERE pde.proposal_id = p.proposal_id AND pde.tenant_id = p.tenant_id LIMIT 1)`
@@ -106,7 +119,7 @@ async function loadProposalRowsForDashboard(
       p.proposal_id,
       p.proposal_name,
       p.status,
-      p.created_by,
+      ${createdBySelect} AS created_by,
       p.created_at,
       p.updated_at,
       COALESCE(dc.cnt, 0)::int AS doc_count,
@@ -144,12 +157,14 @@ async function loadProposalRowsForDashboard(
 
 /** Minimal fallback: proposals + document counts only (when validation/evaluation tables are missing). */
 async function loadProposalRowsMinimal(client: PoolClient, tenantId: string): Promise<ProposalRow[]> {
+  const hasCreatedBy = await columnExists(client, "proposals", "created_by");
+  const createdBySelect = hasCreatedBy ? "p.created_by" : "NULL::text";
   const result = await client.query(
     `SELECT
       p.proposal_id,
       p.proposal_name,
       p.status,
-      p.created_by,
+      ${createdBySelect} AS created_by,
       p.created_at,
       p.updated_at,
       COALESCE(dc.cnt, 0)::int AS doc_count,
@@ -175,7 +190,7 @@ async function loadProposalRowsMinimal(client: PoolClient, tenantId: string): Pr
 export async function buildDashboardSummary(
   tenantId: string,
   userId: string
-): Promise<DashboardSummaryPayload | null> {
+): Promise<DashboardSummaryPayload> {
   const pool = getPostgresPool();
   const client = await pool.connect();
   try {
@@ -194,7 +209,7 @@ export async function buildDashboardSummary(
         useExtractionTable = false;
       } catch (fallbackErr) {
         console.error("[buildDashboardSummary] minimal fallback failed", fallbackErr);
-        return null;
+        return getEmptyDashboardSummary();
       }
     }
 
@@ -331,58 +346,66 @@ export async function buildDashboardSummary(
     type Feed = { ts: number; item: DashboardActivityItem };
     const feed: Feed[] = [];
 
-    const auditRows = await queryAuditLogPg(tenantId, 25);
-    for (const e of auditRows) {
-      const rid =
-        e.resource_type === "proposal" ||
-        e.resource_type === "proposal_evaluation" ||
-        e.resource_type === "proposal_document" ||
-        e.resource_type === "proposal_report"
-          ? e.resource_id
-          : typeof e.details?.proposalId === "string"
-            ? (e.details.proposalId as string)
-            : null;
+    try {
+      const auditRows = await queryAuditLogPg(tenantId, 25);
+      for (const e of auditRows) {
+        const rid =
+          e.resource_type === "proposal" ||
+          e.resource_type === "proposal_evaluation" ||
+          e.resource_type === "proposal_document" ||
+          e.resource_type === "proposal_report"
+            ? e.resource_id
+            : typeof e.details?.proposalId === "string"
+              ? (e.details.proposalId as string)
+              : null;
 
-      const label = auditActionLabel(e.action);
-      const detail =
-        (e.details?.proposalName as string | undefined) ||
-        (e.details?.filename as string | undefined) ||
-        (e.details?.mandateName as string | undefined) ||
-        (rid ? `Resource ${rid.slice(0, 8)}…` : e.resource_type);
+        const label = auditActionLabel(e.action);
+        const detail =
+          (e.details?.proposalName as string | undefined) ||
+          (e.details?.filename as string | undefined) ||
+          (e.details?.mandateName as string | undefined) ||
+          (rid ? `Resource ${rid.slice(0, 8)}…` : e.resource_type);
 
-      const ts = new Date(e.created_at).getTime();
-      feed.push({
-        ts,
-        item: {
-          id: `audit-${e.id}`,
-          label,
-          detail: typeof detail === "string" ? detail : e.resource_type,
-          timeLabel: formatRelativeTime(e.created_at),
-          href: rid ? `/dashboard/proposals/${rid}` : "/dashboard/audit",
-        },
-      });
+        const ts = new Date(e.created_at).getTime();
+        feed.push({
+          ts,
+          item: {
+            id: `audit-${e.id}`,
+            label,
+            detail: typeof detail === "string" ? detail : e.resource_type,
+            timeLabel: formatRelativeTime(e.created_at),
+            href: rid ? `/dashboard/proposals/${rid}` : "/dashboard/audit",
+          },
+        });
+      }
+    } catch (auditErr) {
+      console.warn("[buildDashboardSummary] audit feed skipped", auditErr);
     }
 
-    const created = await client.query(
-      `SELECT proposal_id, proposal_name, created_at FROM proposals
-       WHERE tenant_id = $1
-       ORDER BY created_at DESC
-       LIMIT 12`,
-      [tenantId]
-    );
-    for (const r of created.rows) {
-      const pid = String(r.proposal_id);
-      const iso = r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at);
-      feed.push({
-        ts: new Date(iso).getTime(),
-        item: {
-          id: `created-${pid}`,
-          label: "Proposal created",
-          detail: String(r.proposal_name ?? pid),
-          timeLabel: formatRelativeTime(iso),
-          href: `/dashboard/proposals/${pid}`,
-        },
-      });
+    try {
+      const created = await client.query(
+        `SELECT proposal_id, proposal_name, created_at FROM proposals
+         WHERE tenant_id = $1
+         ORDER BY created_at DESC
+         LIMIT 12`,
+        [tenantId]
+      );
+      for (const r of created.rows) {
+        const pid = String(r.proposal_id);
+        const iso = r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at);
+        feed.push({
+          ts: new Date(iso).getTime(),
+          item: {
+            id: `created-${pid}`,
+            label: "Proposal created",
+            detail: String(r.proposal_name ?? pid),
+            timeLabel: formatRelativeTime(iso),
+            href: `/dashboard/proposals/${pid}`,
+          },
+        });
+      }
+    } catch (createdErr) {
+      console.warn("[buildDashboardSummary] created proposals feed skipped", createdErr);
     }
 
     feed.sort((a, b) => b.ts - a.ts);
@@ -420,7 +443,7 @@ export async function buildDashboardSummary(
     };
   } catch (err) {
     console.error("[buildDashboardSummary]", err);
-    return null;
+    return getEmptyDashboardSummary();
   } finally {
     client.release();
   }

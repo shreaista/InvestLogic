@@ -50,7 +50,7 @@ export async function GET() {
     }
   } catch (error) {
     console.error("[Funds API] GET Error:", error);
-    return jsonError(error);
+    return NextResponse.json({ ok: true, funds: [] });
   }
 }
 

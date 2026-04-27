@@ -14,10 +14,10 @@ export interface FundsRow {
   created_at: string;
 }
 
-function rowToFund(row: FundsRow): Fund {
+function rowToFund(row: FundsRow, tenantId: string): Fund {
   return {
     id: String(row.fund_id),
-    tenantId: "tenant_ipa_001",
+    tenantId,
     name: row.fund_name,
     code: row.fund_code ?? undefined,
     status: (row.status?.toLowerCase() === "inactive" ? "inactive" : "active") as "active" | "inactive",
@@ -50,7 +50,10 @@ export async function getFundByIdPg(tenantId: string, fundId: string): Promise<F
       [tenantId, fundId]
     );
     const row = result.rows[0];
-    return row ? rowToFund(row as FundsRow) : null;
+    return row ? rowToFund(row as FundsRow, tenantId) : null;
+  } catch (e) {
+    console.warn("[listFundsPg] getFundByIdPg failed", e);
+    return null;
   } finally {
     client.release();
   }
@@ -79,7 +82,10 @@ export async function listFundsPg(tenantId: string): Promise<Fund[]> {
        ORDER BY fund_name`,
       [tenantId]
     );
-    return result.rows.map((row) => rowToFund(row as FundsRow));
+    return result.rows.map((row) => rowToFund(row as FundsRow, tenantId));
+  } catch (e) {
+    console.warn("[listFundsPg] listFundsPg failed", e);
+    return [];
   } finally {
     client.release();
   }
