@@ -101,7 +101,7 @@ export async function validateCredentialsPostgres(
 }
 
 /** Map role_name from DB (e.g. "Tenant Admin" or "tenant_admin") to RoleKey. */
-function normalizeRoleNameToKey(roleName: string): RoleKey | null {
+export function normalizeRoleNameToKey(roleName: string): RoleKey | null {
   const s = (roleName ?? "").trim().toLowerCase();
   if (["saas_admin", "tenant_admin", "fund_manager", "assessor", "viewer"].includes(s)) return s as RoleKey;
   const mapping: Record<string, RoleKey> = {
@@ -117,7 +117,7 @@ function normalizeRoleNameToKey(roleName: string): RoleKey | null {
 /** Role priority for picking primary when user has multiple (higher index = higher precedence). */
 const ROLE_PRIORITY: RoleKey[] = ["viewer", "assessor", "fund_manager", "tenant_admin", "saas_admin"];
 
-function pickPrimaryRole(roles: RoleKey[]): RoleKey {
+export function pickPrimaryRole(roles: RoleKey[]): RoleKey {
   if (roles.length === 0) return "viewer";
   let best = roles[0];
   for (const r of roles) {

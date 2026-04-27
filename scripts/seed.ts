@@ -30,23 +30,24 @@ async function main() {
   }
 
   const users = [
-    { id: "user-001", email: "admin@ipa.com", password: "Admin#123", name: "SaaS Admin", role: "saas_admin" as const, tenantId: null },
-    { id: "user-002", email: "tenant@ipa.com", password: "Tenant#123", name: "Tenant Admin", role: "tenant_admin" as const, tenantId: "tenant-001" },
-    { id: "user-003", email: "assessor@ipa.com", password: "Assess#123", name: "Analyst", role: "assessor" as const, tenantId: "tenant-001" },
-    { id: "user-004", email: "fundmanager@ipa.com", password: "Fund#123", name: "Fund Manager", role: "fund_manager" as const, tenantId: "tenant-001" },
-    { id: "user-005", email: "viewer@ipa.com", password: "View#123", name: "Viewer", role: "viewer" as const, tenantId: "tenant-001" },
+    { id: "user-001", email: "admin@ipa.com", pwd: "Admin#123", name: "SaaS Admin", tenantId: null as string | null },
+    { id: "user-002", email: "tenant@ipa.com", pwd: "Tenant#123", name: "Tenant Admin", tenantId: "tenant-001" },
+    { id: "user-003", email: "assessor@ipa.com", pwd: "Assess#123", name: "Analyst", tenantId: "tenant-001" },
+    { id: "user-004", email: "fundmanager@ipa.com", pwd: "Fund#123", name: "Fund Manager", tenantId: "tenant-001" },
+    { id: "user-005", email: "viewer@ipa.com", pwd: "View#123", name: "Viewer", tenantId: "tenant-001" },
   ];
 
   for (const u of users) {
     try {
-      const passwordHash = await hash(u.password);
+      const passwordHash = await hash(u.pwd);
       await db.insert(schema.users).values({
         id: u.id,
         email: u.email,
         passwordHash,
         name: u.name,
-        role: u.role,
         tenantId: u.tenantId,
+        authProvider: "local",
+        status: "active",
         createdAt: now,
         updatedAt: now,
       });

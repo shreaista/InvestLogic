@@ -106,6 +106,9 @@ export async function getProposalRecordPg(
     );
     const row = result.rows[0];
     return row ? rowToRecord(row) : null;
+  } catch (e) {
+    console.warn("[getProposalRecordPg] query failed", e);
+    return null;
   } finally {
     client.release();
   }

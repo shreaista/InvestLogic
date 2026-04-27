@@ -4,6 +4,7 @@ import {
   integer,
   boolean,
   primaryKey,
+  timestamp,
 } from "drizzle-orm/pg-core";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -19,60 +20,58 @@ export const tenants = pgTable("tenants", {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Users
+// Users (physical table: app_users). Role lives in user_roles + roles, not a column.
+// TS property "id" maps to DB "user_id"; "name" is full_name in DB.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type DbRole = "saas_admin" | "tenant_admin" | "fund_manager" | "assessor" | "viewer";
 
-export const users = pgTable("users", {
-  id: text("id").primaryKey(),
-  email: text("email").notNull().unique(),
+export const users = pgTable("app_users", {
+  id: text("user_id").primaryKey(),
+  email: text("email").notNull(),
   passwordHash: text("password_hash"),
-  name: text("name").notNull(),
-  role: text("role", { enum: ["saas_admin", "tenant_admin", "fund_manager", "assessor", "viewer"] }).notNull(),
+  name: text("full_name").notNull().default(""),
   tenantId: text("tenant_id").references(() => tenants.id),
-  createdAt: text("created_at").notNull(),
-  updatedAt: text("updated_at").notNull(),
+  authProvider: text("auth_provider"),
+  status: text("status"),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }),
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Funds
+// Funds (DB: fund_id, fund_name, fund_code, …)
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const funds = pgTable("funds", {
-  id: text("id").primaryKey(),
+  id: text("fund_id").primaryKey(),
   tenantId: text("tenant_id")
     .notNull()
     .references(() => tenants.id),
-  name: text("name").notNull(),
-  code: text("code"),
+  name: text("fund_name").notNull(),
+  code: text("fund_code"),
   status: text("status", { enum: ["active", "inactive"] }).notNull().default("active"),
-  createdAt: text("created_at").notNull(),
-  updatedAt: text("updated_at").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }),
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Proposals
+// Proposals (align with production: proposal_id, proposal_name, requested_amount, …)
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const proposals = pgTable("proposals", {
-  id: text("id").primaryKey(),
+  id: text("proposal_id").primaryKey(),
   tenantId: text("tenant_id")
     .notNull()
     .references(() => tenants.id),
-  name: text("name").notNull(),
-  applicant: text("applicant").notNull(),
+  name: text("proposal_name").notNull(),
+  applicant: text("applicant_name").notNull(),
   fundId: text("fund_id").references(() => funds.id),
-  amount: integer("amount").notNull().default(0),
-  status: text("status", {
-    enum: ["New", "Assigned", "In Review", "Approved", "Declined", "Deferred"],
-  })
-    .notNull()
-    .default("New"),
+  amount: integer("requested_amount").notNull().default(0),
+  status: text("status").notNull().default("new"),
   assignedToUserId: text("assigned_to_user_id").references(() => users.id),
   submittedAt: text("submitted_at").notNull(),
   dueDate: text("due_date"),
-  priority: text("priority", { enum: ["High", "Medium", "Low"] }).notNull().default("Medium"),
+  priority: text("review_priority").notNull().default("medium"),
   sector: text("sector"),
   stage: text("stage"),
   geography: text("geography"),
@@ -180,10 +179,10 @@ export const fundMandateFiles = pgTable("fund_mandate_files", {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Audit Log
+// Audit (physical table: audit_logs; columns vary by environment — use pgAudit for IO)
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const auditLog = pgTable("audit_log", {
+export const auditLog = pgTable("audit_logs", {
   id: text("id").primaryKey(),
   tenantId: text("tenant_id"),
   action: text("action").notNull(),

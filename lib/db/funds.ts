@@ -1,5 +1,6 @@
 import "server-only";
 
+import { randomUUID } from "crypto";
 import { eq, and } from "drizzle-orm";
 import type { Fund } from "@/lib/types";
 import { getDb, funds as fundsTable, fundMandateLinks as fundMandateLinksTable } from "./index";
@@ -17,33 +18,53 @@ export interface UpdateFundInput {
   status?: "active" | "inactive";
 }
 
-function rowToFund(row: { id: string; tenantId: string; name: string; code: string | null; status: string; createdAt: string; updatedAt: string }): Fund {
+function rowToFund(row: {
+  id: string;
+  tenantId: string;
+  name: string;
+  code: string | null;
+  status: string;
+  createdAt: string | null;
+  updatedAt: string | null;
+}): Fund {
+  const ca = row.createdAt ?? new Date().toISOString();
+  const ua = row.updatedAt ?? ca;
   return {
     id: row.id,
     tenantId: row.tenantId,
     name: row.name,
     code: row.code ?? undefined,
-    status: row.status as "active" | "inactive",
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
+    status: (row.status?.toLowerCase() === "inactive" ? "inactive" : "active") as "active" | "inactive",
+    createdAt: ca,
+    updatedAt: ua,
   };
 }
 
 export async function listFunds(tenantId: string): Promise<Fund[]> {
-  const db = getDb();
-  const rows = await db.select().from(fundsTable).where(eq(fundsTable.tenantId, tenantId));
-  return rows.map(rowToFund);
+  try {
+    const db = getDb();
+    const rows = await db.select().from(fundsTable).where(eq(fundsTable.tenantId, tenantId));
+    return rows.map(rowToFund);
+  } catch (e) {
+    console.warn("[db/funds] listFunds failed", e);
+    return [];
+  }
 }
 
 export async function getFundById(tenantId: string, fundId: string): Promise<Fund | null> {
-  const db = getDb();
-  const rows = await db
-    .select()
-    .from(fundsTable)
-    .where(and(eq(fundsTable.tenantId, tenantId), eq(fundsTable.id, fundId)))
-    .limit(1);
-  const row = rows[0];
-  return row ? rowToFund(row) : null;
+  try {
+    const db = getDb();
+    const rows = await db
+      .select()
+      .from(fundsTable)
+      .where(and(eq(fundsTable.tenantId, tenantId), eq(fundsTable.id, fundId)))
+      .limit(1);
+    const row = rows[0];
+    return row ? rowToFund(row) : null;
+  } catch (e) {
+    console.warn("[db/funds] getFundById failed", e);
+    return null;
+  }
 }
 
 function normalize(s: string | undefined): string {
@@ -62,7 +83,13 @@ export async function createFund(tenantId: string, input: CreateFundInput): Prom
   if (!rawName) return { ok: false, error: "Fund name is required" };
 
   const db = getDb();
-  const existing = await db.select().from(fundsTable).where(eq(fundsTable.tenantId, tenantId));
+  let existing: { id: string; name: string; code: string | null }[] = [];
+  try {
+    existing = await db.select().from(fundsTable).where(eq(fundsTable.tenantId, tenantId));
+  } catch (e) {
+    console.warn("[db/funds] createFund list existing failed", e);
+    return { ok: false, error: "Could not create fund" };
+  }
 
   const normName = normalize(rawName);
   const normCode = normalize(input.code);
@@ -74,16 +101,21 @@ export async function createFund(tenantId: string, input: CreateFundInput): Prom
   }
 
   const now = new Date().toISOString();
-  const id = `fund-${Date.now()}`;
-  await db.insert(fundsTable).values({
-    id,
-    tenantId,
-    name: rawName,
-    code: input.code?.trim() || null,
-    status: "active",
-    createdAt: now,
-    updatedAt: now,
-  });
+  const id = randomUUID();
+  try {
+    await db.insert(fundsTable).values({
+      id,
+      tenantId,
+      name: rawName,
+      code: input.code?.trim() || null,
+      status: "active",
+      createdAt: now,
+      updatedAt: now,
+    });
+  } catch (e) {
+    console.error("[db/funds] createFund insert failed", e);
+    return { ok: false, error: "Could not create fund" };
+  }
 
   const fund = await getFundById(tenantId, id);
   return { ok: true, fund: fund ?? undefined };

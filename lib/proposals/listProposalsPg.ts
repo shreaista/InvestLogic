@@ -89,6 +89,9 @@ export async function listProposalsWithAssignmentFromPg(
       };
       return item;
     });
+  } catch (e) {
+    console.warn("[listProposalsPg] query failed", e);
+    return [];
   } finally {
     client.release();
   }
