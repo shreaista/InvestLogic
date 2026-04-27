@@ -1,23 +1,13 @@
 import "server-only";
 
-import path from "path";
-import Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
+import { drizzle } from "drizzle-orm/node-postgres";
 import * as schema from "./schema";
+import { getPostgresPool } from "../postgres";
 
-// Use local SQLite file; for production, switch to DATABASE_URL (PostgreSQL via drizzle)
-const dbPath =
-  process.env.DATABASE_PATH ??
-  path.join(process.cwd(), "data", "ipa.db");
-
-let _db: ReturnType<typeof drizzle> | null = null;
+export const db = drizzle(getPostgresPool(), { schema });
 
 export function getDb() {
-  if (!_db) {
-    const sqlite = new Database(dbPath);
-    _db = drizzle(sqlite, { schema });
-  }
-  return _db;
+  return db;
 }
 
 export * from "./schema";

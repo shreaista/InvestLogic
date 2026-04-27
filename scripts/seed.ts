@@ -1,17 +1,14 @@
 /**
- * Seed script: creates initial tenant and users for production.
+ * Seed script: creates initial tenant and users against PostgreSQL.
  * Run: npx tsx scripts/seed.ts
+ * Requires: DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD (and DB_SSLMODE for Azure).
  */
 
-import Database from "better-sqlite3";
+import "dotenv/config";
 import bcrypt from "bcryptjs";
-import { drizzle } from "drizzle-orm/better-sqlite3";
+import { db } from "../lib/db";
+import { getPostgresPool } from "../lib/postgres";
 import * as schema from "../lib/db/schema";
-import path from "path";
-
-const dbPath = process.env.DATABASE_PATH ?? path.join(process.cwd(), "data", "ipa.db");
-const sqlite = new Database(dbPath);
-const db = drizzle(sqlite, { schema });
 
 const now = new Date().toISOString();
 
@@ -20,7 +17,6 @@ async function hash(pwd: string): Promise<string> {
 }
 
 async function main() {
-  // Tenant
   try {
     await db.insert(schema.tenants).values({
       id: "tenant-001",
@@ -33,7 +29,6 @@ async function main() {
     // Already exists
   }
 
-  // Users (same as legacy mock - for migration)
   const users = [
     { id: "user-001", email: "admin@ipa.com", password: "Admin#123", name: "SaaS Admin", role: "saas_admin" as const, tenantId: null },
     { id: "user-002", email: "tenant@ipa.com", password: "Tenant#123", name: "Tenant Admin", role: "tenant_admin" as const, tenantId: "tenant-001" },
@@ -60,22 +55,25 @@ async function main() {
     }
   }
 
-  // Default entitlements for tenant
   try {
     await db.insert(schema.tenantEntitlements).values({
-    tenantId: "tenant-001",
-    maxAssessors: 15,
-    maxUploadsPerAssessment: 10,
-    maxReportsPerMonth: 50,
-    fundMandatesEnabled: true,
-    canManageFundMandates: true,
-    updatedAt: now,
-  });
+      tenantId: "tenant-001",
+      maxAssessors: 15,
+      maxUploadsPerAssessment: 10,
+      maxReportsPerMonth: 50,
+      fundMandatesEnabled: true,
+      canManageFundMandates: true,
+      updatedAt: now,
+    });
   } catch {
     // Already exists
   }
 
-  console.log("Seed complete. Users: admin@ipa.com, tenant@ipa.com, assessor@ipa.com, fundmanager@ipa.com, viewer@ipa.com");
+  console.log(
+    "Seed complete. Users: admin@ipa.com, tenant@ipa.com, assessor@ipa.com, fundmanager@ipa.com, viewer@ipa.com"
+  );
+
+  await getPostgresPool().end();
 }
 
 main()
@@ -83,5 +81,4 @@ main()
   .catch((e) => {
     console.error(e);
     process.exit(1);
-  })
-  .finally(() => sqlite.close());
+  });

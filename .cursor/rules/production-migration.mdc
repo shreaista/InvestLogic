@@ -7,7 +7,7 @@ alwaysApply: false
 # InvestLogic Production Migration
 
 ## Completed
-- Database: Drizzle + SQLite in `lib/db/`
+- Database: Drizzle + PostgreSQL (`pg`) via `lib/db/` and `lib/postgres.ts`
 - Users & Auth: `lib/db/users.ts`, login uses DB
 - Funds: `lib/db/funds.ts`, all fund APIs use DB
 - Run `npm run db:seed` to create initial tenant + users
