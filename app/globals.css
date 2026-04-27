@@ -8,7 +8,7 @@
   --radius: 0.75rem;
   --radius-lg: 1rem;
 
-  /* IPA brand — explicit hex so utilities always exist even if config merge fails */
+  /* InvestLogic brand — explicit hex so utilities always exist even if config merge fails */
   --color-ipa-shell: #0b1020;
   --color-ipa-shell-border: #1e293b;
   --color-ipa-shell-muted: #9ca3af;
@@ -25,7 +25,7 @@
 }
 
 :root {
-  /* IPA — exact hex mapped to HSL for shadcn / tailwind.config color() bridge */
+  /* InvestLogic — exact hex mapped to HSL for shadcn / tailwind.config color() bridge */
   --background: 210 40% 98%;
   --foreground: 222 47% 11%;
   

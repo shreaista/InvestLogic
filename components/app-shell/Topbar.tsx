@@ -73,7 +73,7 @@ export function Topbar({ user, pageTitle, activeTenantId, onMenuClick }: TopbarP
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-ipa-primary">
             <Briefcase className="h-4 w-4 text-white" />
           </div>
-          <span className="font-semibold text-white">IPA</span>
+          <span className="font-semibold text-white">InvestLogic</span>
         </div>
         <span className="hidden sm:block text-lg font-light text-ipa-shell-muted">/</span>
         <span className="hidden sm:block text-sm font-medium text-ipa-shell-item">{pageTitle}</span>

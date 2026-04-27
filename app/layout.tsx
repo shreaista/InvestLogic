@@ -10,8 +10,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "IPA - Investment Portfolio Assessment",
-  description: "Enterprise-grade investment portfolio assessment platform",
+  title: "InvestLogic",
+  description: "Enterprise-grade funding proposals, diligence workflows, and portfolio analytics.",
 };
 
 export default function RootLayout({

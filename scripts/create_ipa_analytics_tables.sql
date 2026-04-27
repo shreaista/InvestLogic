@@ -1,4 +1,4 @@
--- IPA analytics & workflow persistence (PostgreSQL)
+-- InvestLogic analytics & workflow persistence (PostgreSQL)
 -- Run after proposals / proposal_documents / funds / fund_mandates exist.
 
 -- Optional: narrative on funds (if missing)

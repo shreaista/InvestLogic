@@ -1,7 +1,7 @@
 import "server-only";
 
 /**
- * Azure Blob Storage Adapter for IPA
+ * Azure Blob Storage adapter for the InvestLogic app
  *
  * Supports storing proposal files and fund mandate templates in Azure Blob Storage.
  * Blobs are NOT public - access is controlled via the application.

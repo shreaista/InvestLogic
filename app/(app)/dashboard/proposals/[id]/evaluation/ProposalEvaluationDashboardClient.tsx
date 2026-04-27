@@ -94,7 +94,7 @@ export default function ProposalEvaluationDashboardClient({
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `IPA_Evaluation_${proposalId.replace(/[^\w.-]+/g, "_")}.pdf`;
+      a.download = `InvestLogic_Evaluation_${proposalId.replace(/[^\w.-]+/g, "_")}.pdf`;
       a.rel = "noopener";
       document.body.appendChild(a);
       a.click();

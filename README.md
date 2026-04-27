@@ -1,6 +1,6 @@
-# IPA Frontend
+# InvestLogic Frontend
 
-Enterprise-grade Investment Portfolio Assessment platform built with Next.js.
+Enterprise-grade funding proposals, diligence workflows, and portfolio analytics—built with Next.js.
 
 ## Tech Stack
 

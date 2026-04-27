@@ -8,7 +8,7 @@ export type PageHeroVariant =
   | "audit"
   | "default";
 
-/** White surface, soft border — no gradients (IPA finance theme). */
+/** White surface, soft border — no gradients (InvestLogic finance theme). */
 const variantSurfaces: Record<PageHeroVariant, string> = {
   funds: "bg-card border border-border shadow-soft",
   proposals: "bg-card border border-border shadow-soft",

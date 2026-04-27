@@ -68,7 +68,7 @@ export async function POST(_request: NextRequest, context: RouteContext) {
     });
 
     const safeId = proposalId.replace(/[^\w.-]+/g, "_");
-    const filename = `IPA_Evaluation_${safeId}.pdf`;
+    const filename = `InvestLogic_Evaluation_${safeId}.pdf`;
 
     return new NextResponse(Buffer.from(pdfBytes), {
       status: 200,

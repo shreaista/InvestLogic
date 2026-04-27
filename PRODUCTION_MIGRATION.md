@@ -1,6 +1,6 @@
-# IPA: Demo to Production Mode Migration Guide
+# InvestLogic: Demo to Production Mode Migration Guide
 
-This document provides a structured plan to convert IPA from demo/sample mode to production mode. Use this as a prompt for Cursor or as a development roadmap.
+This document provides a structured plan to convert InvestLogic from demo/sample mode to production mode. Use this as a prompt for Cursor or as a development roadmap.
 
 ---
 

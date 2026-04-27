@@ -1,10 +1,10 @@
 ---
-description: IPA production migration - DB-backed data, RBAC, no mock/sample data
+description: InvestLogic production migration - DB-backed data, RBAC, no mock/sample data
 globs: lib/mock/**/*.ts, lib/db/**/*.ts, app/api/**/*.ts
 alwaysApply: false
 ---
 
-# IPA Production Migration
+# InvestLogic Production Migration
 
 ## Completed
 - Database: Drizzle + SQLite in `lib/db/`

@@ -262,7 +262,7 @@ export async function generateEvaluationReportPdf(args: EvaluationReportPdfBuild
     color: rgb(0.35, 0.38, 0.42),
   });
   w.y -= 48;
-  w.page.drawText("Prepared by IPA Platform", {
+    w.page.drawText("Prepared by InvestLogic", {
     x: M,
     y: w.y,
     size: 10,
@@ -330,7 +330,7 @@ export async function generateEvaluationReportPdf(args: EvaluationReportPdfBuild
   const total = pages.length;
   for (let i = 0; i < total; i++) {
     const p = pages[i];
-    p.drawText("IPA Platform · Confidential", {
+    p.drawText("InvestLogic · Confidential", {
       x: M,
       y: FOOTER_Y,
       size: 8,

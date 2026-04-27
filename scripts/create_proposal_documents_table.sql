@@ -1,4 +1,4 @@
--- PostgreSQL: proposal document uploads (run once against IPA DB)
+-- PostgreSQL: proposal document uploads (run once against the InvestLogic app database)
 
 CREATE TABLE IF NOT EXISTS proposal_documents (
   proposal_document_id VARCHAR(36) PRIMARY KEY,

@@ -1,5 +1,5 @@
 -- Create mandates table for storing mandate metadata (PostgreSQL)
--- Run this against your IPA database before using Upload Mandate.
+-- Run this against your InvestLogic app database before using Upload Mandate.
 
 CREATE TABLE IF NOT EXISTS mandates (
   mandate_id VARCHAR(36) PRIMARY KEY,

@@ -1,4 +1,4 @@
--- PostgreSQL: proposals linked to funds (run once against IPA DB)
+-- PostgreSQL: proposals linked to funds (run once against the InvestLogic app database)
 
 CREATE TABLE IF NOT EXISTS proposals (
   proposal_id VARCHAR(36) PRIMARY KEY,

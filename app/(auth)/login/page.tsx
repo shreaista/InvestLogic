@@ -79,14 +79,14 @@ export default function LoginPage() {
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm border border-white/10">
               <Briefcase className="h-5 w-5" />
             </div>
-            <span className="text-xl font-semibold tracking-tight">IPA</span>
+            <span className="text-xl font-semibold tracking-tight">InvestLogic</span>
           </div>
 
           {/* Headline */}
           <h1 className="text-4xl xl:text-5xl font-bold leading-[1.1] tracking-tight mb-4">
-            Investment Portfolio
+            InvestLogic
             <br />
-            <span className="text-nav-muted">Assessment Platform</span>
+            <span className="text-nav-muted">Proposals, diligence, and reporting</span>
           </h1>
 
           <p className="mb-12 max-w-md text-lg leading-relaxed text-nav-muted">
@@ -121,7 +121,7 @@ export default function LoginPage() {
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
                 <Briefcase className="h-4 w-4 text-primary-foreground" />
               </div>
-              <span className="text-lg font-semibold">IPA</span>
+              <span className="text-lg font-semibold">InvestLogic</span>
             </div>
 
             {/* Login Card */}
@@ -206,7 +206,7 @@ export default function LoginPage() {
 
             {/* Footer */}
             <p className="mt-8 text-center text-xs text-muted-foreground">
-              © ShreAIsta — IPA
+              © ShreAIsta — InvestLogic
             </p>
           </div>
         </div>
