@@ -6,7 +6,6 @@ import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { Badge } from "@/components/ui/badge";
 import {
   Menu,
-  Search,
   LogOut,
   Briefcase,
   ChevronDown,
@@ -85,27 +84,7 @@ export function Topbar({ user, pageTitle, activeTenantId, onMenuClick }: TopbarP
         <TenantSwitcher activeTenantId={activeTenantId} role={user.role} darkHeader />
       )}
 
-      <div className="hidden md:flex items-center">
-        <button
-          type="button"
-          className="flex h-9 min-w-[200px] items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-ipa-shell-item transition-colors hover:border-white/15 hover:bg-white/10 hover:text-white"
-        >
-          <Search className="h-4 w-4 shrink-0 text-ipa-shell-muted" />
-          <span className="flex-1 text-left text-ipa-shell-muted">Search...</span>
-          <kbd className="pointer-events-none hidden lg:inline-flex h-5 items-center gap-1 rounded border border-white/10 bg-ipa-shell px-1.5 font-mono text-[10px] font-medium text-ipa-shell-muted">
-            ⌘K
-          </kbd>
-        </button>
-      </div>
-
-      <div className="flex items-center gap-1">
-        <button
-          type="button"
-          className="md:hidden rounded-lg p-2 text-ipa-shell-muted transition-colors hover:bg-white/[0.06] hover:text-white"
-        >
-          <Search className="h-5 w-5" />
-        </button>
-
+      <div className="flex items-center gap-2">
         <ThemeToggle className="text-ipa-shell-muted hover:bg-white/[0.06] hover:text-white" />
 
         <div className="relative ml-1">
